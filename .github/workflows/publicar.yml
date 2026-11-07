@@ -1,0 +1,43 @@
+# Cada vez que se sube algo a main: corre los tests, arma la demo y la publica en GitHub Pages.
+name: Publicar demo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - run: npx ng test --watch=false
+      # Arma la web y el archivo único; el archivo queda para descargar desde el mismo sitio.
+      - run: npm run demo:html
+      - run: cp dist/cafeteria-demo.html dist/frontend/browser/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist/frontend/browser
+      - id: deploy
+        uses: actions/deploy-pages@v4
