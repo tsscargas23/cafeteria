@@ -3,6 +3,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { plata } from '../core/formato';
 import { Coffee, Phone } from '../core/iconos';
 import { Tienda } from '../core/tienda';
+import { categoriasOrdenadas } from './carta-qr';
 
 /** La carta que ve el cliente al escanear el QR. Sin login, pensada para celular. */
 @Component({
@@ -11,8 +12,8 @@ import { Tienda } from '../core/tienda';
   styles: `
     :host { display: block; min-height: 100vh; background: var(--surface); }
     header { padding: 28px 20px 18px; text-align: center; border-bottom: 1px solid var(--border);
-      .logo { width: 52px; height: 52px; border-radius: 14px; background: var(--accent); color: #fff; display: inline-grid; place-items: center; margin-bottom: 10px; }
-      h1 { font-size: 24px; } p { color: var(--text-2); } }
+      .logo { width: 52px; height: 52px; border-radius: 14px; background: var(--accent); color: var(--accent-ink); display: inline-grid; place-items: center; margin-bottom: 10px; }
+      h1 { font-size: 24px; } p { color: var(--text-2); } .frase { color: var(--text); font-size: var(--fs-md); margin: 6px auto 4px; max-width: 32ch; text-wrap: balance; } }
     .mesa { display: inline-block; margin-top: 10px; }
     nav { position: sticky; top: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px; border-bottom: 1px solid var(--border); z-index: 2; }
     main { max-width: 640px; margin: 0 auto; padding: 8px 20px 40px; }
@@ -29,6 +30,7 @@ import { Tienda } from '../core/tienda';
     <header>
       <span class="logo"><lucide-icon [img]="iCafe" [size]="26" /></span>
       <h1>{{ ajustes().nombreLocal }}</h1>
+      @if (ajustes().carta.frase) { <p class="frase">{{ ajustes().carta.frase }}</p> }
       <p>{{ ajustes().direccion }}</p>
       @if (mesa()) { <span class="etiqueta acento mesa">Estás en la mesa {{ mesa() }}</span> }
     </header>
@@ -53,6 +55,7 @@ import { Tienda } from '../core/tienda';
     </main>
     <footer>
       <span><lucide-icon [img]="iTel" [size]="14" /> {{ ajustes().telefono }}</span>
+      @if (ajustes().carta.aviso) { <span>{{ ajustes().carta.aviso }}</span> }
       <span>Precios en pesos. Pedíselo a quien te atiende.</span>
     </footer>
   `,
@@ -64,8 +67,9 @@ export class CartaPublica {
   protected readonly ajustes = computed(() => this.tienda.estado().ajustes);
   protected readonly secciones = computed(() => {
     const e = this.tienda.estado();
-    return e.categorias
-      .map((nombre) => ({ nombre, productos: e.productos.filter((p) => p.categoria === nombre && p.activo && p.dondeSeVende !== 'online') }))
+    const ocultos = e.ajustes.carta.ocultos;
+    return categoriasOrdenadas(e.categorias, e.ajustes.carta.ordenCategorias)
+      .map((nombre) => ({ nombre, productos: e.productos.filter((p) => p.categoria === nombre && p.activo && p.dondeSeVende !== 'online' && !ocultos.includes(p.id)) }))
       .filter((s) => s.productos.length);
   });
   protected readonly plata = plata;

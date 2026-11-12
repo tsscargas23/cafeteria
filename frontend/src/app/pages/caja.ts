@@ -1,161 +1,161 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { Avisos } from '../core/avisos';
 import { duracion, fecha, hora, nombreMedio, plata } from '../core/formato';
-import { Banknote, CircleCheck, Clock, Lock, Plus, Trash2, TriangleAlert } from '../core/iconos';
-import { MedioPago, TurnoDef } from '../core/modelos';
+import { Banknote, CircleCheck, Clock, Lock, Plus, TriangleAlert } from '../core/iconos';
+import { Billetes, MedioPago } from '../core/modelos';
 import { efectivoEsperado, totalesPorMedio, ventasDelTurno } from '../core/reglas';
-import { nuevoId, Tienda } from '../core/tienda';
+import { Tienda } from '../core/tienda';
+import { ContadorBilletes, totalBilletes } from '../shared/contador-billetes';
 
 @Component({
   selector: 'app-caja',
-  imports: [FormsModule, LucideAngularModule],
+  imports: [FormsModule, LucideAngularModule, RouterLink, ContadorBilletes],
   styles: `
-    .dos { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+    .tab { padding: 10px 14px; border: 0; background: transparent; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 650; color: var(--text-2); cursor: pointer;
+      &.activo { color: var(--accent-text); border-color: var(--accent-text); } }
+    .estado-caja { display: flex; align-items: center; gap: 14px; padding: 16px 18px; flex-wrap: wrap;
+      .icono { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--ok-soft); color: var(--ok); &.cerrada { background: var(--surface-2); color: var(--text-3); } }
+      .texto { flex: 1; min-width: 200px; h2 { font-size: var(--fs-lg); } p { color: var(--text-2); } } }
+    .dos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
     .col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-    .turno-cab { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .medios-lista { display: flex; flex-direction: column; }
+    .paso { display: flex; flex-direction: column; gap: 14px; }
+    .paso h3 { display: flex; align-items: center; gap: 10px; }
+    .numero { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: inline-grid; place-items: center; font-size: var(--fs-sm); font-weight: 700; }
     .medios-lista div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; &:last-child { border: 0; } }
     .mov { display: grid; grid-template-columns: 56px 1fr auto; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: center; font-variant-numeric: tabular-nums; }
     .form-mov { display: grid; grid-template-columns: 170px 130px 1fr auto; gap: 8px; align-items: end; }
-    .cierre { display: flex; flex-direction: column; gap: 12px; }
     .dif { font-size: 22px; font-weight: 750; font-variant-numeric: tabular-nums; }
-    .defs { display: grid; grid-template-columns: minmax(0, 1fr) 128px 128px auto; gap: 8px; align-items: center; }
     .empleadas { display: flex; flex-wrap: wrap; gap: 14px; }
+    .resumen-cierre { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: var(--surface-2); border-radius: var(--r);
+      div { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; } }
     @media (max-width: 1100px) { .dos { grid-template-columns: 1fr; } .form-mov { grid-template-columns: 1fr 1fr; } }
   `,
   template: `
     <div class="pagina">
       <div class="pagina-cab">
-        <div class="titulo"><h1>Turnos y caja</h1><p>El turno dura hasta que se cierra la caja. Si se quedan más tiempo, todo lo vendido cuenta en ese turno.</p></div>
+        <div class="titulo"><h1>Caja</h1><p>Se abre con el cambio del día y se cierra contando la plata. Todo lo que pasa entre medio es un turno.</p></div>
       </div>
 
-      <div class="dos">
-        <div class="col">
-          @if (turno(); as t) {
-            <section class="panel">
-              <div class="panel-cab">
-                <lucide-icon [img]="iReloj" [size]="20" />
-                <h2>Turno {{ nombreDef(t.defId) }} · abierto</h2>
-                <span class="etiqueta ok derecha">Desde {{ hora(t.abiertoEn) }} · {{ duracion(t.abiertoEn) }}</span>
-              </div>
-              <div class="panel-cuerpo" style="display:flex;flex-direction:column;gap:14px">
-                <p class="sec">Lo abrió {{ tienda.nombreUsuario(t.abiertoPorId) }}. Trabajan: {{ nombresEmpleadas(t.empleadaIds) }}. Horario de referencia: {{ defDe(t.defId)?.desde }} a {{ defDe(t.defId)?.hasta }}.</p>
-                @if (pasado()) {
-                  <p class="aviso-linea atencion"><lucide-icon [img]="iAlerta" [size]="16" /><span>Ya pasó el horario de referencia ({{ defDe(t.defId)?.hasta }}). Si terminaron, cerrá la caja. Si siguen trabajando, no pasa nada: todo cuenta en este turno.</span></p>
-                }
-                <div class="indicadores">
-                  <div class="indicador"><div class="nombre">Vendido en el turno</div><div class="valor">{{ plata(vendido()) }}</div><div class="detalle">{{ ventasTurno().length }} ventas</div></div>
-                  <div class="indicador"><div class="nombre">Efectivo que debería haber</div><div class="valor">{{ plata(esperado()) }}</div><div class="detalle">Incluye {{ plata(t.efectivoInicial) }} de inicio</div></div>
+      @if (tienda.esDuena()) {
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" [class.activo]="pestana() === 'hoy'" (click)="pestana.set('hoy')">Caja de hoy</button>
+          <button class="tab" role="tab" [class.activo]="pestana() === 'historial'" (click)="pestana.set('historial')">Turnos anteriores</button>
+        </div>
+      }
+
+      @if (pestana() === 'hoy') {
+        @if (turno(); as t) {
+          <section class="panel estado-caja">
+            <span class="icono"><lucide-icon [img]="iReloj" [size]="22" /></span>
+            <div class="texto">
+              <h2>Caja abierta · turno {{ nombreDef(t.defId) }}</h2>
+              <p>Desde las {{ hora(t.abiertoEn) }} ({{ duracion(t.abiertoEn) }}). Abrió {{ tienda.nombreUsuario(t.abiertoPorId) }} con {{ plata(t.efectivoInicial) }} de cambio. Trabajan: {{ nombresEmpleadas(t.empleadaIds) }}.</p>
+            </div>
+            @if (pasado()) { <span class="etiqueta atencion"><lucide-icon [img]="iAlerta" [size]="13" />Pasó su horario ({{ defDe(t.defId)?.hasta }})</span> }
+            @else { <span class="etiqueta ok"><lucide-icon [img]="iOk" [size]="13" />En horario</span> }
+          </section>
+          @if (pasado()) {
+            <p class="aviso-linea atencion"><lucide-icon [img]="iAlerta" [size]="16" /><span>Ya pasó el horario de referencia. No pasa nada: si siguen trabajando, todo lo que vendan cuenta en este turno. Cuando terminen, cerrá la caja acá abajo.</span></p>
+          }
+
+          <div class="indicadores">
+            <div class="indicador"><div class="nombre">Vendido en el turno</div><div class="valor">{{ plata(vendido()) }}</div><div class="detalle">{{ ventasTurno().length }} ventas</div></div>
+            <div class="indicador"><div class="nombre">Cobrado en efectivo</div><div class="valor">{{ plata(porMedioMapa().efectivo) }}</div><div class="detalle">El resto entró por transferencia, QR o tarjeta</div></div>
+            <div class="indicador"><div class="nombre">Efectivo que debería haber</div><div class="valor">{{ plata(esperado()) }}</div><div class="detalle">Cambio + efectivo cobrado + entradas − salidas</div></div>
+          </div>
+
+          <div class="dos">
+            <div class="col">
+              <section class="panel">
+                <div class="panel-cab"><h3>Cobrado por medio de pago</h3></div>
+                <div class="panel-cuerpo medios-lista">
+                  @for (m of porMedio(); track m.medio) { <div><span>{{ nombreMedio(m.medio) }}</span><b>{{ plata(m.total) }}</b></div> }
                 </div>
-              </div>
-            </section>
+              </section>
+              <section class="panel">
+                <div class="panel-cab"><h3>Plata que entró o salió de la caja</h3></div>
+                <div class="panel-cuerpo">
+                  <p class="ter" style="margin-bottom:10px">Pagos a proveedores en efectivo, compras chicas, o si traés más cambio.</p>
+                  @for (m of t.movimientos; track m.id) {
+                    <div class="mov"><span class="ter">{{ hora(m.fecha) }}</span><span>{{ m.motivo }}</span><b [style.color]="m.tipo === 'egreso' ? 'var(--danger)' : 'var(--ok)'">{{ m.tipo === 'egreso' ? '−' : '+' }}{{ plata(m.monto) }}</b></div>
+                  } @empty { <p class="ter">Sin movimientos todavía.</p> }
+                  <form class="form-mov" (ngSubmit)="agregarMovimiento()" style="margin-top:12px">
+                    <label class="campo"><span>Qué pasó</span><select class="input" name="tipo" [(ngModel)]="movTipo"><option value="egreso">Salió plata</option><option value="ingreso">Entró plata</option></select></label>
+                    <label class="campo"><span>Monto</span><span class="input-plata"><input class="input" name="monto" type="number" min="0" [(ngModel)]="movMonto" /></span></label>
+                    <label class="campo"><span>Motivo</span><input class="input" name="motivo" [(ngModel)]="movMotivo" placeholder="Ej.: hielo, pago a la panadería" /></label>
+                    <button class="btn" type="submit" [disabled]="!movMonto || !movMotivo.trim()"><lucide-icon [img]="iMas" [size]="17" />Anotar</button>
+                  </form>
+                </div>
+              </section>
+            </div>
 
-            <section class="panel">
-              <div class="panel-cab"><h3>Cobrado por medio de pago</h3></div>
-              <div class="panel-cuerpo medios-lista">
-                @for (m of porMedio(); track m.medio) {
-                  <div><span>{{ nombreMedio(m.medio) }}</span><b>{{ plata(m.total) }}</b></div>
+            <section class="panel col" style="gap:0">
+              <div class="panel-cab"><lucide-icon [img]="iBillete" [size]="20" /><h3>Cerrar la caja</h3></div>
+              <form class="panel-cuerpo paso" (ngSubmit)="cerrar()">
+                <p class="sec">Contá los billetes que hay en la caja y anotá cuántos de cada uno. El total se calcula solo.</p>
+                <app-contador-billetes [(billetes)]="billetesCierre" etiqueta="Contado en la caja" />
+                @if (!ciego()) {
+                  <div class="resumen-cierre">
+                    <div><span class="sec">Debería haber</span><b>{{ plata(esperado()) }}</b></div>
+                    <div><span class="sec">Contaste</span><b>{{ plata(contado()) }}</b></div>
+                    <div><span class="sec">Diferencia</span>
+                      <span class="dif" [style.color]="diferencia() === 0 ? 'var(--ok)' : 'var(--danger)'">{{ diferencia() === 0 ? 'Cierra justo' : (diferencia() > 0 ? 'Sobran ' : 'Faltan ') + plata(abs(diferencia())) }}</span>
+                    </div>
+                  </div>
+                } @else {
+                  <p class="aviso-linea info">Arqueo ciego: la diferencia la ve solo la dueña.</p>
                 }
-              </div>
+                <label class="campo"><span>Nota (opcional)</span><input class="input" name="nota" [(ngModel)]="nota" placeholder="Ej.: faltó cambio de 100" /></label>
+                @if (contado() === 0) { <label class="check"><input type="checkbox" [ngModel]="confirmarCero()" (ngModelChange)="confirmarCero.set($event)" name="cero" />La caja quedó realmente en $ 0</label> }
+                <button class="btn primario grande" type="submit" [disabled]="contado() === 0 && !confirmarCero()">Cerrar caja y terminar el turno</button>
+              </form>
             </section>
+          </div>
+        } @else {
+          <section class="panel estado-caja">
+            <span class="icono cerrada"><lucide-icon [img]="iCandado" [size]="22" /></span>
+            <div class="texto"><h2>Caja cerrada</h2><p>Para vender hay que abrirla. Lleva un minuto: quién trabaja y con cuánto cambio arranca.</p></div>
+          </section>
 
-            <section class="panel">
-              <div class="panel-cab"><h3>Entradas y salidas de efectivo</h3><span class="ter">Pagos al proveedor, cambio, compras chicas</span></div>
-              <div class="panel-cuerpo">
-                @for (m of t.movimientos; track m.id) {
-                  <div class="mov"><span class="ter">{{ hora(m.fecha) }}</span><span>{{ m.motivo }}</span><b [style.color]="m.tipo === 'egreso' ? 'var(--danger)' : 'var(--ok)'">{{ m.tipo === 'egreso' ? '−' : '+' }}{{ plata(m.monto) }}</b></div>
-                } @empty {
-                  <p class="ter" style="margin-bottom:12px">Sin movimientos en este turno.</p>
-                }
-                <form class="form-mov" (ngSubmit)="agregarMovimiento()" style="margin-top:12px">
-                  <label class="campo"><span>Tipo</span><select class="input" name="tipo" [(ngModel)]="movTipo"><option value="egreso">Sale de la caja</option><option value="ingreso">Entra a la caja</option></select></label>
-                  <label class="campo"><span>Monto</span><span class="input-plata"><input class="input" name="monto" type="number" min="0" [(ngModel)]="movMonto" /></span></label>
-                  <label class="campo"><span>Motivo</span><input class="input" name="motivo" [(ngModel)]="movMotivo" placeholder="Ej.: hielo, cambio, pago a la panadería" /></label>
-                  <button class="btn" type="submit" [disabled]="!movMonto || !movMotivo.trim()"><lucide-icon [img]="iMas" [size]="17" />Anotar</button>
-                </form>
-              </div>
-            </section>
-          } @else {
-            <section class="panel">
-              <div class="panel-cab"><lucide-icon [img]="iCandado" [size]="20" /><h2>La caja está cerrada</h2></div>
-              <form class="panel-cuerpo cierre" (ngSubmit)="abrir()">
-                <label class="campo"><span>¿Qué turno arranca?</span>
-                  <select class="input" name="def" [(ngModel)]="abrirDef">
-                    @for (d of defs(); track d.id) { <option [value]="d.id">{{ d.nombre }} ({{ d.desde }} a {{ d.hasta }})</option> }
-                  </select>
-                </label>
-                <span class="campo"><span>¿Quiénes trabajan?</span></span>
+          <form class="dos" (ngSubmit)="abrir()">
+            <section class="panel col" style="gap:0">
+              <div class="panel-cab"><h3><span class="numero">1</span> ¿Qué turno arranca y quiénes trabajan?</h3></div>
+              <div class="panel-cuerpo paso">
+                <div class="segmentos">
+                  @for (d of defs(); track d.id) {
+                    <button type="button" [class.activo]="abrirDef === d.id" (click)="abrirDef = d.id">{{ d.nombre }} <span class="ter">{{ d.desde }}–{{ d.hasta }}</span></button>
+                  }
+                </div>
+                <p class="ter">El horario es solo de referencia: el turno dura hasta que cierres la caja. @if (tienda.esDuena()) { Los turnos se cambian en <a routerLink="/ajustes">Ajustes</a>. }</p>
+                <span class="campo"><span>Trabajan</span></span>
                 <div class="empleadas">
                   @for (u of activas(); track u.id) {
                     <label class="check"><input type="checkbox" [checked]="abrirEquipo.includes(u.id)" (change)="alternarEquipo(u.id)" />{{ u.nombre }}</label>
                   }
                 </div>
-                <label class="campo" style="max-width:240px"><span>Efectivo con el que arranca la caja</span><span class="input-plata"><input class="input" name="inicial" type="number" min="0" [(ngModel)]="abrirInicial" /></span></label>
-                <div><button class="btn primario grande" type="submit"><lucide-icon [img]="iReloj" [size]="18" />Abrir turno</button></div>
-              </form>
-            </section>
-          }
-        </div>
-
-        <div class="col">
-          @if (turno()) {
-            <section class="panel">
-              <div class="panel-cab"><lucide-icon [img]="iBillete" [size]="20" /><h3>Cerrar la caja</h3></div>
-              <form class="panel-cuerpo cierre" (ngSubmit)="cerrar()">
-                <p class="sec">Contá el efectivo que hay en la caja y anotalo.</p>
-                <label class="campo"><span>Efectivo contado</span><span class="input-plata"><input class="input" name="contado" type="number" min="0" [(ngModel)]="contado" /></span></label>
-                @if (!ciego()) {
-                  <div class="fila" style="justify-content:space-between">
-                    <span class="sec">Debería haber</span><b class="num">{{ plata(esperado()) }}</b>
-                  </div>
-                  @if (contado !== null) {
-                    <div class="fila" style="justify-content:space-between">
-                      <span class="sec">Diferencia</span>
-                      <span class="dif" [style.color]="contado - esperado() === 0 ? 'var(--ok)' : 'var(--danger)'">
-                        {{ contado - esperado() === 0 ? 'Cierra justo' : (contado - esperado() > 0 ? 'Sobran ' : 'Faltan ') + plata(abs(contado - esperado())) }}
-                      </span>
-                    </div>
-                  }
-                } @else {
-                  <p class="aviso-linea info">Arqueo ciego: la diferencia la ve solo la dueña.</p>
-                }
-                <label class="campo"><span>Nota (opcional)</span><input class="input" name="nota" [(ngModel)]="nota" placeholder="Ej.: faltó cambio" /></label>
-                <button class="btn primario grande" type="submit" [disabled]="contado === null">Cerrar caja y terminar turno</button>
-              </form>
-            </section>
-          }
-
-          @if (tienda.esDuena()) {
-            <section class="panel">
-              <div class="panel-cab"><h3>Turnos de referencia</h3><span class="ter derecha">No cortan solos</span></div>
-              <div class="panel-cuerpo" style="display:flex;flex-direction:column;gap:10px">
-                <div class="defs ter"><span>Nombre</span><span>Desde</span><span>Hasta</span><span></span></div>
-                @for (d of editDefs; track d.id) {
-                  <div class="defs">
-                    <input class="input" [(ngModel)]="d.nombre" [name]="'n' + d.id" />
-                    <input class="input" type="time" [(ngModel)]="d.desde" [name]="'d' + d.id" />
-                    <input class="input" type="time" [(ngModel)]="d.hasta" [name]="'h' + d.id" />
-                    <button class="btn icono fantasma" (click)="quitarDef(d.id)" [disabled]="editDefs.length === 1" aria-label="Quitar turno"><lucide-icon [img]="iBorrar" [size]="17" /></button>
-                  </div>
-                }
-                <div class="fila">
-                  <button class="btn chico" (click)="sumarDef()"><lucide-icon [img]="iMas" [size]="15" />Agregar turno</button>
-                  <button class="btn chico primario" style="margin-left:auto" (click)="guardarDefs()">Guardar turnos</button>
-                </div>
               </div>
             </section>
-          }
-        </div>
-      </div>
-
-      @if (tienda.esDuena()) {
+            <section class="panel col" style="gap:0">
+              <div class="panel-cab"><h3><span class="numero">2</span> ¿Con cuánto cambio arranca?</h3></div>
+              <div class="panel-cuerpo paso">
+                <p class="sec">Anotá los billetes que dejás en la caja para dar vuelto.</p>
+                <app-contador-billetes [(billetes)]="billetesInicio" etiqueta="Arranca con" />
+                <p class="aviso-linea"><lucide-icon [img]="iBillete" [size]="16" /><span>Arrancás el día con <b>{{ plata(inicial()) }}</b> de cambio.</span></p>
+                <button class="btn primario grande" type="submit" [disabled]="!abrirDef"><lucide-icon [img]="iReloj" [size]="18" />Abrir la caja</button>
+              </div>
+            </section>
+          </form>
+        }
+      } @else {
         <section class="panel">
           <div class="panel-cab"><h3>Turnos anteriores</h3><span class="ter">Horario real de cada turno y cómo cerró la caja</span></div>
           <div class="tabla-envoltura">
             <table class="tabla">
-              <thead><tr><th>Día</th><th>Turno</th><th>Horario real</th><th>Duración</th><th>Trabajaron</th><th class="num">Vendido</th><th>Caja</th></tr></thead>
+              <thead><tr><th>Día</th><th>Turno</th><th>Horario real</th><th>Duración</th><th>Trabajaron</th><th class="num">Cambio inicial</th><th class="num">Vendido</th><th>Caja</th></tr></thead>
               <tbody>
                 @for (t of historial(); track t.id) {
                   <tr>
@@ -164,6 +164,7 @@ import { nuevoId, Tienda } from '../core/tienda';
                     <td class="num" style="text-align:left">{{ hora(t.abiertoEn) }} a {{ hora(t.cerradoEn!) }}</td>
                     <td>{{ duracion(t.abiertoEn, t.cerradoEn!) }}</td>
                     <td class="sec">{{ nombresEmpleadas(t.empleadaIds) }}</td>
+                    <td class="num sec">{{ plata(t.efectivoInicial) }}</td>
                     <td class="num">{{ plata(t.vendido) }}</td>
                     <td>
                       @if (!t.arqueo || t.arqueo.diferencia === 0) { <span class="etiqueta ok"><lucide-icon [img]="iOk" [size]="12" />Cerró justo</span> }
@@ -184,14 +185,16 @@ export class Caja {
   protected readonly tienda = inject(Tienda);
   private readonly avisos = inject(Avisos);
 
+  protected readonly pestana = signal<'hoy' | 'historial'>('hoy');
   protected readonly turno = this.tienda.turnoAbierto;
   protected readonly defs = computed(() => this.tienda.estado().turnoDefs);
   protected readonly activas = computed(() => this.tienda.estado().usuarios.filter((u) => u.activo && u.rol === 'empleada'));
   protected readonly ventasTurno = computed(() => (this.turno() ? ventasDelTurno(this.tienda.estado().ventas, this.turno()!.id) : []));
   protected readonly vendido = computed(() => this.ventasTurno().reduce((s, v) => s + v.total, 0));
   protected readonly esperado = computed(() => (this.turno() ? efectivoEsperado(this.turno()!, this.tienda.estado().ventas) : 0));
+  protected readonly porMedioMapa = computed(() => totalesPorMedio(this.ventasTurno()));
   protected readonly porMedio = computed(() => {
-    const t = totalesPorMedio(this.ventasTurno());
+    const t = this.porMedioMapa();
     return (Object.keys(t) as MedioPago[]).map((medio) => ({ medio, total: t[medio] }));
   });
   protected readonly ciego = computed(() => this.tienda.estado().ajustes.arqueoCiego && !this.tienda.esDuena());
@@ -206,22 +209,23 @@ export class Caja {
   });
   protected readonly historial = computed(() => {
     const e = this.tienda.estado();
-    return e.turnos
-      .filter((t) => t.cerradoEn)
-      .sort((a, b) => b.abiertoEn - a.abiertoEn)
-      .slice(0, 30)
+    return e.turnos.filter((t) => t.cerradoEn).sort((a, b) => b.abiertoEn - a.abiertoEn).slice(0, 40)
       .map((t) => ({ ...t, vendido: ventasDelTurno(e.ventas, t.id).reduce((s, v) => s + v.total, 0) }));
   });
+
+  protected readonly billetesCierre = signal<Billetes>({});
+  protected readonly contado = computed(() => totalBilletes(this.billetesCierre()));
+  protected readonly diferencia = computed(() => this.contado() - this.esperado());
+  protected readonly confirmarCero = signal(false);
+  protected readonly billetesInicio = signal<Billetes>(this.ultimoCambio());
+  protected readonly inicial = computed(() => totalBilletes(this.billetesInicio()));
 
   protected movTipo: 'ingreso' | 'egreso' = 'egreso';
   protected movMonto: number | null = null;
   protected movMotivo = '';
-  protected contado: number | null = null;
   protected nota = '';
   protected abrirDef = this.sugerirDef();
   protected abrirEquipo: string[] = [this.tienda.usuario()?.id ?? ''].filter((id) => this.tienda.estado().usuarios.find((u) => u.id === id)?.rol === 'empleada');
-  protected abrirInicial = 20000;
-  protected editDefs: TurnoDef[] = this.tienda.estado().turnoDefs.map((d) => ({ ...d }));
 
   protected readonly plata = plata;
   protected readonly hora = hora;
@@ -234,7 +238,6 @@ export class Caja {
   protected readonly iMas = Plus;
   protected readonly iCandado = Lock;
   protected readonly iBillete = Banknote;
-  protected readonly iBorrar = Trash2;
   protected readonly iOk = CircleCheck;
 
   defDe(id: string) {
@@ -242,11 +245,17 @@ export class Caja {
   }
 
   nombreDef(id: string) {
-    return this.defDe(id)?.nombre ?? 'Turno';
+    return this.defDe(id)?.nombre.toLowerCase() ?? 'turno';
   }
 
   nombresEmpleadas(ids: string[]) {
     return ids.map((id) => this.tienda.nombreUsuario(id)).join(', ') || '—';
+  }
+
+  /** Sugiere los billetes del último turno, para no cargarlos de nuevo cada día. */
+  private ultimoCambio(): Billetes {
+    const t = [...this.tienda.estado().turnos].sort((a, b) => b.abiertoEn - a.abiertoEn)[0];
+    return t?.billetesInicial ? { ...t.billetesInicial } : { '10000': 1, '2000': 3, '1000': 3, '500': 2 };
   }
 
   private sugerirDef(): string {
@@ -266,8 +275,10 @@ export class Caja {
   }
 
   abrir() {
-    this.tienda.abrirTurno(this.abrirDef, this.abrirEquipo, this.abrirInicial || 0);
-    this.avisos.mostrar(`Turno ${this.nombreDef(this.abrirDef).toLowerCase()} abierto`);
+    this.tienda.abrirTurno(this.abrirDef, this.abrirEquipo, this.inicial(), this.billetesInicio());
+    this.avisos.mostrar(`Caja abierta con ${plata(this.inicial())} de cambio`);
+    this.billetesCierre.set({});
+    this.confirmarCero.set(false);
   }
 
   agregarMovimiento() {
@@ -278,25 +289,12 @@ export class Caja {
   }
 
   cerrar() {
-    if (this.contado === null) return;
-    const dif = this.contado - this.esperado();
-    this.tienda.cerrarTurno(this.contado, this.esperado(), this.nota);
+    const dif = this.diferencia();
+    this.tienda.cerrarTurno(this.contado(), this.esperado(), this.nota, this.billetesCierre());
     this.avisos.mostrar(dif === 0 ? 'Caja cerrada. Cerró justo.' : `Caja cerrada. ${dif > 0 ? 'Sobraron' : 'Faltaron'} ${plata(Math.abs(dif))}.`, dif === 0 ? 'ok' : 'info');
-    this.contado = null;
     this.nota = '';
+    this.billetesCierre.set({});
+    this.billetesInicio.set(this.ultimoCambio());
     this.abrirDef = this.sugerirDef();
-  }
-
-  sumarDef() {
-    this.editDefs = [...this.editDefs, { id: nuevoId('td'), nombre: 'Noche', desde: '20:00', hasta: '02:00' }];
-  }
-
-  quitarDef(id: string) {
-    this.editDefs = this.editDefs.filter((d) => d.id !== id);
-  }
-
-  guardarDefs() {
-    this.tienda.guardarTurnoDefs(this.editDefs.filter((d) => d.nombre.trim()));
-    this.avisos.mostrar('Turnos guardados');
   }
 }

@@ -17,7 +17,7 @@ export interface Opcion {
   styles: `
     :host { position: relative; display: inline-block; }
     .disparador { gap: 6px; }
-    .disparador.con-valor { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+    .disparador.con-valor { background: var(--accent-soft); border-color: var(--accent-text); color: var(--accent-text); }
     .menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; width: 300px; max-height: 380px; display: flex; flex-direction: column;
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-2); animation: subir 0.15s var(--ease); }
     .buscar { padding: 10px; border-bottom: 1px solid var(--border); .buscador { display: block; min-width: 0; width: 100%; } }
@@ -25,7 +25,7 @@ export interface Opcion {
     .grupo { font-size: var(--fs-xs); font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 8px 4px; }
     .opciones label { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--r-sm); cursor: pointer; font-size: var(--fs-sm);
       &:hover { background: var(--surface-2); } &.sangria { padding-left: 32px; color: var(--text-2); }
-      input { width: 16px; height: 16px; accent-color: var(--accent); } }
+      input { width: 16px; height: 16px; accent-color: var(--accent-text); } }
     .pie { display: flex; justify-content: space-between; padding: 8px 10px; border-top: 1px solid var(--border); }
   `,
   template: `

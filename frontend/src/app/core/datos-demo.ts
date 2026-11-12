@@ -248,7 +248,7 @@ export function estadoInicial(ahora = Date.now()): Estado {
       const turno: Turno = {
         id: `t-${dia.getTime()}-${def.defId}`, defId: def.defId, abiertoEn, cerradoEn: abierto ? null : finPrevisto,
         abiertoPorId: def.equipo[0], cerradoPorId: abierto ? null : def.equipo[0], empleadaIds: [...def.equipo],
-        efectivoInicial: 20000, movimientos: [], arqueo: null,
+        efectivoInicial: 20000, billetesInicial: { '10000': 1, '2000': 3, '1000': 3, '500': 2 }, movimientos: [], arqueo: null,
       };
       if (r() < 0.3) turno.movimientos.push({ id: `mv-${turno.id}`, fecha: abiertoEn + 3600_000, tipo: 'egreso', monto: 3000 + Math.round(r() * 8) * 500, motivo: r() < 0.5 ? 'Hielo y limones' : 'Artículos de limpieza' });
       turnos.push(turno);
@@ -335,9 +335,10 @@ export function estadoInicial(ahora = Date.now()): Estado {
   return {
     version: 1,
     ajustes: {
-      nombreLocal: 'Café La Esquina', direccion: 'Av. Siempreviva 742', telefono: '11 5555-0100', alias: 'cafe.la.esquina.mp',
+      nombreLocal: 'Panacota', direccion: 'Av. Siempreviva 742', telefono: '11 5555-0100', alias: 'panacota.mp',
       mediosActivos: ['efectivo', 'transferencia', 'mercadopago', 'debito', 'credito'], arqueoCiego: false,
       copia: { cadaDias: 7, email: 'claudia@ejemplo.com', ultima: ahora - 5 * 86_400_000 },
+      carta: { frase: 'Café de especialidad, tortas caseras y facturas recién hechas.', aviso: 'Los precios pueden cambiar sin aviso. Consultá por opciones sin TACC.', ordenCategorias: [], ocultos: [] },
     },
     usuarios: structuredClone(usuarios),
     categorias: ['Cafetería', 'Panadería', 'Pastelería', 'Salados', 'Bebidas', 'Bar'],

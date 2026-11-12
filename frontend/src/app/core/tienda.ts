@@ -1,8 +1,8 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { estadoInicial } from './datos-demo';
 import {
-  Ajustes, Cuenta, Estado, FormaMesa, Insumo, ItemCuenta, LineaVenta, MedioPago, ModoCobro, Producto, Proveedor,
-  Turno, TurnoDef, Usuario, Venta,
+  Ajustes, Billetes, CartaConfig, Cuenta, Estado, FormaMesa, Insumo, ItemCuenta, LineaVenta, MedioPago, ModoCobro, Producto,
+  Proveedor, Turno, TurnoDef, Usuario, Venta,
 } from './modelos';
 import { aplicarAumento, consumo, FilaImportada, nombreItem, pendienteCuenta } from './reglas';
 
@@ -48,7 +48,7 @@ export interface PagoNuevo {
  */
 @Injectable({ providedIn: 'root' })
 export class Tienda {
-  private readonly _estado = signal<Estado>(leer<Estado>(CLAVE) ?? estadoInicial());
+  private readonly _estado = signal<Estado>(migrar(leer<Estado>(CLAVE)) ?? estadoInicial());
   readonly estado = this._estado.asReadonly();
 
   private readonly _usuarioId = signal<string | null>(leer<string>(CLAVE_SESION));
@@ -454,11 +454,11 @@ export class Tienda {
 
   // ---------- Turnos y caja ----------
 
-  abrirTurno(defId: string, empleadaIds: string[], efectivoInicial: number): Turno | null {
+  abrirTurno(defId: string, empleadaIds: string[], efectivoInicial: number, billetesInicial?: Billetes): Turno | null {
     if (this.turnoAbierto()) return null;
     const t: Turno = {
       id: nuevoId('t'), defId, abiertoEn: Date.now(), cerradoEn: null, abiertoPorId: this.usuario()?.id ?? '', cerradoPorId: null,
-      empleadaIds, efectivoInicial, movimientos: [], arqueo: null,
+      empleadaIds, efectivoInicial, billetesInicial, movimientos: [], arqueo: null,
     };
     this.mutar((e) => e.turnos.push(t));
     return t;
@@ -471,13 +471,13 @@ export class Tienda {
     });
   }
 
-  cerrarTurno(contado: number, esperado: number, nota: string) {
+  cerrarTurno(contado: number, esperado: number, nota: string, billetes?: Billetes) {
     this.mutar((e) => {
       const t = e.turnos.find((x) => !x.cerradoEn);
       if (!t) return;
       t.cerradoEn = Date.now();
       t.cerradoPorId = this.usuario()?.id ?? null;
-      t.arqueo = { contado, esperado, diferencia: contado - esperado, nota };
+      t.arqueo = { contado, esperado, diferencia: contado - esperado, nota, billetes };
     });
   }
 
@@ -505,6 +505,17 @@ export class Tienda {
     this.mutar((e) => (e.ajustes = structuredClone(a)));
   }
 
+  guardarCarta(c: CartaConfig) {
+    this.mutar((e) => (e.ajustes.carta = structuredClone(c)));
+  }
+
+  editarDescripcion(productoId: string, descripcion: string) {
+    this.mutar((e) => {
+      const p = e.productos.find((x) => x.id === productoId);
+      if (p) p.descripcion = descripcion.trim();
+    });
+  }
+
   copiaDeSeguridad(): string {
     this.mutar((e) => (e.ajustes.copia.ultima = Date.now()));
     return JSON.stringify({ tipo: 'copia-cafeteria', creada: new Date().toISOString(), estado: this._estado() });
@@ -515,8 +526,9 @@ export class Tienda {
     try {
       const datos = JSON.parse(texto) as { tipo?: string; estado?: Estado };
       if (datos.tipo !== 'copia-cafeteria' || !datos.estado?.ventas) return 'Ese archivo no es una copia de este sistema.';
-      this._estado.set(datos.estado);
-      escribir(CLAVE, datos.estado);
+      const e = migrar(datos.estado)!;
+      this._estado.set(e);
+      escribir(CLAVE, e);
       return null;
     } catch {
       return 'No se pudo leer el archivo. Probá con otra copia.';
@@ -528,6 +540,15 @@ export class Tienda {
     this._estado.set(e);
     escribir(CLAVE, e);
   }
+}
+
+/** Completa lo que le falte a un estado guardado con una versión anterior de la demo. */
+function migrar(e: Estado | null): Estado | null {
+  if (!e) return null;
+  const base = estadoInicial().ajustes;
+  e.ajustes = { ...base, ...e.ajustes, carta: { ...base.carta, ...(e.ajustes.carta ?? {}) } };
+  if (e.ajustes.nombreLocal === 'Café La Esquina') e.ajustes.nombreLocal = base.nombreLocal;
+  return e;
 }
 
 function redondear(n: number): number {

@@ -252,18 +252,6 @@ function siguienteDia(d: number): number {
   return x.getTime();
 }
 
-/** Cantidad de ventas por día de la semana (0 = lunes) y hora. */
-export function horasPico(ventas: Venta[], horaDesde = 7, horaHasta = 23): number[][] {
-  const m = Array.from({ length: 7 }, () => Array.from({ length: horaHasta - horaDesde + 1 }, () => 0));
-  for (const v of ventas) {
-    const d = new Date(v.fecha);
-    const h = d.getHours();
-    if (h < horaDesde || h > horaHasta) continue;
-    m[(d.getDay() + 6) % 7][h - horaDesde] += 1;
-  }
-  return m;
-}
-
 export function porMedio(ventas: Venta[], f: Filtros): { medio: MedioPago; total: number }[] {
   const t = new Map<MedioPago, number>();
   for (const v of ventas) {

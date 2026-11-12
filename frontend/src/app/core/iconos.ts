@@ -4,5 +4,5 @@ export {
   Pencil, Trash2, Check, ChevronDown, ChevronRight, ChevronLeft, Upload, Download, Printer, TriangleAlert, CircleCheck,
   CircleX, CircleAlert, Percent, Move, UserPlus, User, Receipt, ArrowRightLeft, Wallet, Banknote, Lock, Eye, EyeOff,
   House, Store, Funnel, ArrowUp, ArrowDown, ArrowUpDown, RotateCcw, Hand, Square, Circle, RectangleHorizontal, Armchair,
-  PanelLeftClose, PanelLeftOpen, Menu, Phone, MessageCircle, FileSpreadsheet, ShieldCheck, Mail, History, Info, Ban, Undo2,
+  PanelLeftClose, PanelLeftOpen, Menu, Delete, GripVertical, Phone, MessageCircle, FileSpreadsheet, ShieldCheck, Mail, History, Info, Ban, Undo2,
 } from 'lucide-angular';

@@ -44,7 +44,7 @@ import { Impresion } from '../shared/ticket';
           <label class="buscador"><lucide-icon [img]="iBuscar" [size]="17" /><input class="input" placeholder="Buscar producto" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" /></label>
         </div>
         @if (!tienda.turnoAbierto()) {
-          <p class="aviso-linea atencion">La caja está cerrada. <a routerLink="/caja">Abrí un turno</a> para poder vender.</p>
+          <p class="aviso-linea atencion">La caja está cerrada. <a routerLink="/caja">Abrila</a> para poder vender.</p>
         }
         <div class="categorias">
           <button class="chip" [class.activo]="categoria() === null" (click)="categoria.set(null)">Todo</button>

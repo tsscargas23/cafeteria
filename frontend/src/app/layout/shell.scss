@@ -2,7 +2,7 @@
 .app.angosta { grid-template-columns: 68px 1fr; }
 
 .lateral-nav {
-  position: sticky; top: 0; height: 100vh; background: var(--surface); border-right: 1px solid var(--border);
+  position: sticky; top: 0; height: 100vh; background: #fcfaf9; border-right: 1px solid var(--border);
   display: flex; flex-direction: column; padding: 14px 10px; gap: 6px; overflow: hidden; z-index: 30;
   ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; }
   a {
@@ -13,7 +13,7 @@
   }
 }
 .marca { display: flex; align-items: center; gap: 10px; padding: 4px 6px 10px; border-bottom: 1px solid var(--border); }
-.logo { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: #fff; display: grid; place-items: center; flex: none; }
+.logo { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
 .nombre-local { display: flex; flex-direction: column; min-width: 0; line-height: 1.25;
   b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   small { color: var(--text-3); font-size: var(--fs-xs); white-space: nowrap; } }
@@ -28,7 +28,7 @@
 .principal { min-width: 0; display: flex; flex-direction: column; }
 .barra-sup {
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 20px;
-  background: rgba(247, 248, 250, 0.92); backdrop-filter: saturate(1.4) blur(8px); border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92); backdrop-filter: saturate(1.4) blur(8px); border-bottom: 1px solid var(--border);
 }
 .turno { display: inline-flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border);
   color: var(--text-2); text-decoration: none; font-size: var(--fs-sm); box-shadow: var(--shadow-1);

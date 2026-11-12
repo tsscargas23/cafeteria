@@ -237,11 +237,15 @@ export interface MovimientoCaja {
   motivo: string;
 }
 
+/** Cuántos billetes de cada valor hay (clave = valor del billete). */
+export type Billetes = Record<string, number>;
+
 export interface Arqueo {
   contado: number;
   esperado: number;
   diferencia: number;
   nota: string;
+  billetes?: Billetes;
 }
 
 /** Un turno real de caja: dura desde que se abre hasta que se cierra. */
@@ -254,8 +258,18 @@ export interface Turno {
   cerradoPorId: string | null;
   empleadaIds: string[];
   efectivoInicial: number;
+  billetesInicial?: Billetes;
   movimientos: MovimientoCaja[];
   arqueo: Arqueo | null;
+}
+
+/** Cómo se muestra la carta pública (la del QR). */
+export interface CartaConfig {
+  frase: string;
+  aviso: string;
+  ordenCategorias: string[];
+  /** Productos que no salen en la carta aunque estén activos. */
+  ocultos: string[];
 }
 
 export interface Ajustes {
@@ -266,6 +280,7 @@ export interface Ajustes {
   mediosActivos: MedioPago[];
   arqueoCiego: boolean;
   copia: { cadaDias: number; email: string; ultima: number | null };
+  carta: CartaConfig;
 }
 
 export interface Estado {

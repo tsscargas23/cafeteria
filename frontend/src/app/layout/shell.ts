@@ -19,7 +19,7 @@ const SECCIONES: Seccion[] = [
   { ruta: '/inicio', nombre: 'Inicio', icono: House, soloDuena: true },
   { ruta: '/mesas', nombre: 'Mesas', icono: LayoutGrid, soloDuena: false },
   { ruta: '/mostrador', nombre: 'Mostrador', icono: Store, soloDuena: false },
-  { ruta: '/caja', nombre: 'Turnos y caja', icono: Clock, soloDuena: false },
+  { ruta: '/caja', nombre: 'Caja', icono: Clock, soloDuena: false },
   { ruta: '/productos', nombre: 'Productos', icono: Coffee, soloDuena: true },
   { ruta: '/inventario', nombre: 'Inventario', icono: Boxes, soloDuena: true },
   { ruta: '/proveedores', nombre: 'Proveedores', icono: Truck, soloDuena: true },
@@ -70,7 +70,7 @@ const SECCIONES: Seccion[] = [
               @if (turnoPasado()) { <span class="etiqueta atencion">Pasó su horario</span> }
             </a>
           } @else {
-            <a class="turno cerrado" routerLink="/caja"><span class="punto"></span><span><b>Caja cerrada</b><span class="det"> · Abrí un turno para vender</span></span></a>
+            <a class="turno cerrado" routerLink="/caja"><span class="punto"></span><span><b>Caja cerrada</b><span class="det"> · Abrila en «Caja» para vender</span></span></a>
           }
           <div class="usuario">
             <span class="avatar">{{ iniciales(tienda.usuario()?.nombre ?? '') }}</span>

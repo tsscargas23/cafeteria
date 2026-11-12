@@ -49,7 +49,7 @@ type Vista = 'cuenta' | 'agregar' | 'cobrar' | 'mover' | 'cobrada';
       <!-- Mesa libre: abrir -->
       <div class="cuerpo">
         @if (!tienda.turnoAbierto()) {
-          <p class="aviso-linea atencion"><lucide-icon [img]="iMano" [size]="16" />La caja está cerrada. Abrí un turno en «Turnos y caja» para cargar consumos.</p>
+          <p class="aviso-linea atencion"><lucide-icon [img]="iMano" [size]="16" />La caja está cerrada. Abrila en «Caja» para cargar consumos.</p>
         }
         <h3>¿Cuántos se sientan?</h3>
         <div class="cantidades">

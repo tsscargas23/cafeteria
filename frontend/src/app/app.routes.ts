@@ -29,7 +29,7 @@ export const routes: Routes = [
       { path: 'inicio', canActivate: [soloDuena], loadComponent: () => import('./pages/inicio').then((m) => m.Inicio), title: 'Inicio' },
       { path: 'mesas', loadComponent: () => import('./pages/mesas/mesas').then((m) => m.Mesas), title: 'Mesas' },
       { path: 'mostrador', loadComponent: () => import('./pages/mostrador').then((m) => m.Mostrador), title: 'Mostrador' },
-      { path: 'caja', loadComponent: () => import('./pages/caja').then((m) => m.Caja), title: 'Turnos y caja' },
+      { path: 'caja', loadComponent: () => import('./pages/caja').then((m) => m.Caja), title: 'Caja' },
       { path: 'productos', canActivate: [soloDuena], loadComponent: () => import('./pages/productos').then((m) => m.Productos), title: 'Productos' },
       { path: 'inventario', canActivate: [soloDuena], loadComponent: () => import('./pages/inventario').then((m) => m.Inventario), title: 'Inventario' },
       { path: 'proveedores', canActivate: [soloDuena], loadComponent: () => import('./pages/proveedores').then((m) => m.Proveedores), title: 'Proveedores' },

@@ -7,15 +7,13 @@ import { aInputFecha, deInputFecha, fecha, fechaHora, hora, nombreMedio, num, pl
 import { ArrowDown, ArrowUp, ArrowUpDown, Ban, CircleAlert, Download, Info, RotateCcw } from '../core/iconos';
 import { MEDIOS_PAGO, MedioPago, Origen, Venta } from '../core/modelos';
 import {
-  FilaProducto, Filtros, filtrarVentas, horasPico, importeFiltrado, inicioDelDia, kilosCafe, porDia, porMedio, porProducto, resumen, variacion,
+  FilaProducto, Filtros, filtrarVentas, importeFiltrado, inicioDelDia, kilosCafe, porDia, porMedio, porProducto, resumen, variacion,
 } from '../core/reglas';
 import { Tienda } from '../core/tienda';
 import { GraficoDias } from '../shared/grafico-dias';
 import { Opcion, Selector } from '../shared/selector';
 
 type Periodo = 'hoy' | 'ayer' | '7' | 'mes' | 'mesPasado' | '30' | 'otro';
-const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-const HORA_DESDE = 7;
 
 @Component({
   selector: 'app-reportes',
@@ -32,13 +30,9 @@ const HORA_DESDE = 7;
       .pista { height: 10px; background: var(--surface-2); border-radius: 0 4px 4px 0; }
       .relleno { height: 100%; background: var(--series-1); border-radius: 0 4px 4px 0; min-width: 2px; }
       b { font-variant-numeric: tabular-nums; min-width: 84px; text-align: right; } }
-    .calor { display: grid; grid-template-columns: 38px repeat(17, minmax(0, 1fr)); gap: 2px; font-size: 11px; color: var(--text-3); }
-    .calor .celda { aspect-ratio: 1.3; border-radius: 3px; }
-    .calor .h { text-align: center; font-variant-numeric: tabular-nums; }
-    .escala { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-3); margin-top: 10px; span.c { width: 18px; height: 10px; border-radius: 2px; } }
     .tabs { display: flex; gap: 4px; }
     .tab { padding: 8px 12px; border: 0; background: transparent; border-bottom: 2px solid transparent; font-weight: 650; color: var(--text-2); cursor: pointer;
-      &.activo { color: var(--accent-text); border-color: var(--accent); } }
+      &.activo { color: var(--accent-text); border-color: var(--accent-text); } }
     .pct { color: var(--text-3); font-size: var(--fs-sm); }
     @media (max-width: 1100px) { .dos { grid-template-columns: 1fr; } }
   `,
@@ -177,23 +171,6 @@ const HORA_DESDE = 7;
         </div>
       </div>
 
-      <section class="panel">
-        <div class="panel-cab"><h3>Horas pico</h3><span class="ter derecha">Cantidad de ventas por día de la semana y hora</span></div>
-        <div class="panel-cuerpo">
-          <div class="calor" role="table" aria-label="Ventas por día y hora">
-            <span></span>
-            @for (h of horas; track h) { <span class="h">{{ h }}</span> }
-            @for (fila of calor(); track $index; let d = $index) {
-              <span>{{ nombresDias[d] }}</span>
-              @for (v of fila; track $index; let h = $index) {
-                <span class="celda" [style.background]="colorCalor(v)" [attr.title]="nombresDias[d] + ' ' + horas[h] + ' h: ' + v + ' ventas'"></span>
-              }
-            }
-          </div>
-          <div class="escala"><span>Menos</span>@for (c of escala; track c) { <span class="c" [style.background]="c"></span> }<span>Más</span>
-            @if (pico(); as p) { <span style="margin-left:auto">El momento con más movimiento: <b>{{ p }}</b></span> }</div>
-        </div>
-      </section>
     </div>
 
     @if (anulando(); as v) {
@@ -271,14 +248,6 @@ export class Reportes {
   protected readonly maxTamano = computed(() => Math.max(1, ...this.cafesPorTamano().map((t) => t.cantidad)));
   protected readonly medioPago = computed(() => porMedio(this.lista(), this.filtros()));
   protected readonly maxMedio = computed(() => Math.max(1, ...this.medioPago().map((m) => m.total)));
-  protected readonly calor = computed(() => horasPico(this.lista(), HORA_DESDE, 23));
-  private readonly maxCalor = computed(() => Math.max(1, ...this.calor().flat()));
-  protected readonly pico = computed(() => {
-    let mejor = { v: 0, d: 0, h: 0 };
-    this.calor().forEach((fila, d) => fila.forEach((v, h) => { if (v > mejor.v) mejor = { v, d, h }; }));
-    return mejor.v ? `${DIAS_LARGO[mejor.d]} de ${HORA_DESDE + mejor.h} a ${HORA_DESDE + mejor.h + 1} h` : null;
-  });
-
   protected readonly opcionesProducto = computed<Opcion[]>(() => this.tienda.estado().productos.flatMap((p) => [
     { valor: p.id, texto: p.variantes.length > 1 ? `${p.nombre} (todos)` : p.nombre, grupo: p.categoria },
     ...(p.variantes.length > 1 ? p.variantes.map((v) => ({ valor: `${p.id}:${v.id}`, texto: `${p.nombre} ${v.nombre.toLowerCase()}`, grupo: p.categoria, sangria: true })) : []),
@@ -289,9 +258,6 @@ export class Reportes {
   protected readonly opcionesMedio: Opcion[] = MEDIOS_PAGO.map((m) => ({ valor: m.id, texto: m.nombre }));
   protected readonly opcionesOrigen: Opcion[] = [{ valor: 'mesa', texto: 'Mesas' }, { valor: 'mostrador', texto: 'Mostrador' }];
 
-  protected readonly nombresDias = DIAS;
-  protected readonly horas = Array.from({ length: 17 }, (_, i) => HORA_DESDE + i);
-  protected readonly escala = ['#eef4fc', '#cfe0f6', '#9fc1ec', '#5f97dd', '#2a78d6', '#1b4f91'];
   protected readonly plata = plata;
   protected readonly num = num;
   protected readonly fecha = fecha;
@@ -372,12 +338,6 @@ export class Reportes {
     return v.pagos.map((p) => nombreMedio(p.medio)).filter((x, i, a) => a.indexOf(x) === i).join(' + ');
   }
 
-  colorCalor(v: number) {
-    if (!v) return 'var(--surface-2)';
-    const i = Math.min(this.escala.length - 1, Math.floor((v / this.maxCalor()) * this.escala.length));
-    return this.escala[i];
-  }
-
   anular() {
     const v = this.anulando();
     if (!v || !this.motivo.trim()) return;
@@ -406,8 +366,6 @@ export class Reportes {
     ]);
   }
 }
-
-const DIAS_LARGO = ['Los lunes', 'Los martes', 'Los miércoles', 'Los jueves', 'Los viernes', 'Los sábados', 'Los domingos'];
 
 function finDelDia(t: number) {
   const d = new Date(t);
