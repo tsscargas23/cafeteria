@@ -14,7 +14,8 @@ export interface Usuario {
   nombre: string;
   usuario: string;
   contrasena: string;
-  pin: string;
+  /** Para recuperar la contraseña. */
+  email: string;
   rol: Rol;
   telefono: string;
   activo: boolean;

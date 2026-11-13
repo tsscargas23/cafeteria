@@ -4,15 +4,16 @@ import { RouterLink } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { Avisos } from '../core/avisos';
 import { duracion, fecha, hora, nombreMedio, plata } from '../core/formato';
-import { Banknote, CircleCheck, Clock, Lock, Plus, TriangleAlert } from '../core/iconos';
+import { Banknote, CircleCheck, Clock, Lock, Plus, TriangleAlert, X } from '../core/iconos';
 import { Billetes, MedioPago } from '../core/modelos';
 import { efectivoEsperado, totalesPorMedio, ventasDelTurno } from '../core/reglas';
 import { Tienda } from '../core/tienda';
 import { ContadorBilletes, totalBilletes } from '../shared/contador-billetes';
+import { VentasTurno } from '../shared/ventas-turno';
 
 @Component({
   selector: 'app-caja',
-  imports: [FormsModule, LucideAngularModule, RouterLink, ContadorBilletes],
+  imports: [FormsModule, LucideAngularModule, RouterLink, ContadorBilletes, VentasTurno],
   styles: `
     .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
     .tab { padding: 10px 14px; border: 0; background: transparent; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 650; color: var(--text-2); cursor: pointer;
@@ -32,6 +33,8 @@ import { ContadorBilletes, totalBilletes } from '../shared/contador-billetes';
     .empleadas { display: flex; flex-wrap: wrap; gap: 14px; }
     .resumen-cierre { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: var(--surface-2); border-radius: var(--r);
       div { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; } }
+    .cuenta-efectivo .linea { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; &.total { border: 0; padding-top: 10px; font-size: var(--fs-md); } }
+    .billetes-lista { display: flex; flex-wrap: wrap; gap: 6px; }
     @media (max-width: 1100px) { .dos { grid-template-columns: 1fr; } .form-mov { grid-template-columns: 1fr 1fr; } }
   `,
   template: `
@@ -63,10 +66,21 @@ import { ContadorBilletes, totalBilletes } from '../shared/contador-billetes';
           }
 
           <div class="indicadores">
-            <div class="indicador"><div class="nombre">Vendido en el turno</div><div class="valor">{{ plata(vendido()) }}</div><div class="detalle">{{ ventasTurno().length }} ventas</div></div>
-            <div class="indicador"><div class="nombre">Cobrado en efectivo</div><div class="valor">{{ plata(porMedioMapa().efectivo) }}</div><div class="detalle">El resto entró por transferencia, QR o tarjeta</div></div>
-            <div class="indicador"><div class="nombre">Efectivo que debería haber</div><div class="valor">{{ plata(esperado()) }}</div><div class="detalle">Cambio + efectivo cobrado + entradas − salidas</div></div>
+            <div class="indicador"><div class="nombre">Vendido en el turno</div><div class="valor">{{ plata(vendido()) }}</div><div class="detalle">{{ ventasTurno().length }} ventas, de mesas y mostrador</div></div>
+            <div class="indicador"><div class="nombre">Cobrado en efectivo</div><div class="valor">{{ plata(porMedioMapa().efectivo) }}</div><div class="detalle">Lo demás entró por transferencia, QR o tarjeta</div></div>
+            <div class="indicador"><div class="nombre">Efectivo que debería haber en la caja</div><div class="valor">{{ plata(esperado()) }}</div><div class="detalle">Es lo que tenés que contar al cerrar</div></div>
           </div>
+
+          <section class="panel cuenta-efectivo">
+            <div class="panel-cab"><h3>Cómo se llega al efectivo que debería haber</h3></div>
+            <div class="panel-cuerpo">
+              <div class="linea"><span>Cambio con el que se abrió la caja</span><b>{{ plata(t.efectivoInicial) }}</b></div>
+              <div class="linea"><span>+ Cobrado en efectivo (mesas y mostrador)</span><b>{{ plata(porMedioMapa().efectivo) }}</b></div>
+              <div class="linea"><span>+ Plata que entró</span><b>{{ plata(entradas()) }}</b></div>
+              <div class="linea"><span>− Plata que salió (proveedores, compras chicas)</span><b>{{ plata(salidas()) }}</b></div>
+              <div class="linea total"><span>= Debería haber</span><b>{{ plata(esperado()) }}</b></div>
+            </div>
+          </section>
 
           <div class="dos">
             <div class="col">
@@ -90,6 +104,10 @@ import { ContadorBilletes, totalBilletes } from '../shared/contador-billetes';
                     <button class="btn" type="submit" [disabled]="!movMonto || !movMotivo.trim()"><lucide-icon [img]="iMas" [size]="17" />Anotar</button>
                   </form>
                 </div>
+              </section>
+              <section class="panel">
+                <div class="panel-cab"><h3>Ventas del turno</h3><span class="ter derecha">Mesas y mostrador</span></div>
+                <app-ventas-turno [ventas]="ventasTurno()" />
               </section>
             </div>
 
@@ -152,13 +170,13 @@ import { ContadorBilletes, totalBilletes } from '../shared/contador-billetes';
         }
       } @else {
         <section class="panel">
-          <div class="panel-cab"><h3>Turnos anteriores</h3><span class="ter">Horario real de cada turno y cómo cerró la caja</span></div>
+          <div class="panel-cab"><h3>Turnos anteriores</h3><span class="ter">Tocá un turno para ver qué se vendió y cómo cerró la caja</span></div>
           <div class="tabla-envoltura">
             <table class="tabla">
               <thead><tr><th>Día</th><th>Turno</th><th>Horario real</th><th>Duración</th><th>Trabajaron</th><th class="num">Cambio inicial</th><th class="num">Vendido</th><th>Caja</th></tr></thead>
               <tbody>
                 @for (t of historial(); track t.id) {
-                  <tr>
+                  <tr class="clic" (click)="detalle.set(t.id)">
                     <td>{{ fecha(t.abiertoEn) }}</td>
                     <td>{{ nombreDef(t.defId) }}</td>
                     <td class="num" style="text-align:left">{{ hora(t.abiertoEn) }} a {{ hora(t.cerradoEn!) }}</td>
@@ -179,6 +197,41 @@ import { ContadorBilletes, totalBilletes } from '../shared/contador-billetes';
         </section>
       }
     </div>
+
+    @if (turnoDetalle(); as t) {
+      <div class="lateral-fondo" (click)="detalle.set(null)"></div>
+      <aside class="lateral ancho" role="dialog" aria-label="Detalle del turno">
+        <div class="lateral-cab">
+          <div><h2>Turno {{ nombreDef(t.defId) }} · {{ fecha(t.abiertoEn) }}</h2><p class="ter">{{ hora(t.abiertoEn) }} a {{ hora(t.cerradoEn!) }} ({{ duracion(t.abiertoEn, t.cerradoEn!) }}) · {{ nombresEmpleadas(t.empleadaIds) }}</p></div>
+          <button class="btn icono fantasma" (click)="detalle.set(null)" aria-label="Cerrar"><lucide-icon [img]="iX" [size]="20" /></button>
+        </div>
+        <div class="lateral-cuerpo">
+          <div class="indicadores">
+            <div class="indicador"><div class="nombre">Vendido</div><div class="valor">{{ plata(t.vendido) }}</div><div class="detalle">{{ t.ventas.length }} ventas</div></div>
+            <div class="indicador"><div class="nombre">En efectivo</div><div class="valor">{{ plata(t.medios.efectivo) }}</div></div>
+            <div class="indicador"><div class="nombre">Caja al cerrar</div><div class="valor">{{ t.arqueo ? plata(t.arqueo.contado) : '—' }}</div>
+              <div class="detalle">@if (t.arqueo) { Debía haber {{ plata(t.arqueo.esperado) }} }</div></div>
+          </div>
+          @if (t.arqueo?.nota) { <p class="aviso-linea">Nota: {{ t.arqueo!.nota }}</p> }
+          <h3>Cobrado por medio de pago</h3>
+          <div class="medios-lista">
+            @for (m of mediosLista(t.medios); track m.medio) { <div><span>{{ nombreMedio(m.medio) }}</span><b>{{ plata(m.total) }}</b></div> }
+          </div>
+          @if (t.movimientos.length) {
+            <h3>Plata que entró o salió</h3>
+            <div>@for (m of t.movimientos; track m.id) { <div class="mov"><span class="ter">{{ hora(m.fecha) }}</span><span>{{ m.motivo }}</span><b>{{ m.tipo === 'egreso' ? '−' : '+' }}{{ plata(m.monto) }}</b></div> }</div>
+          }
+          @if (t.arqueo?.billetes) {
+            <h3>Billetes contados al cerrar</h3>
+            <div class="billetes-lista">
+              @for (b of billetesLista(t.arqueo!.billetes!); track b.valor) { <span class="etiqueta">{{ b.valor === 'otros' ? 'Otros ' + plata(b.cantidad) : b.cantidad + ' × $ ' + formatear(+b.valor) }}</span> }
+            </div>
+          }
+          <h3>Ventas del turno</h3>
+          <app-ventas-turno [ventas]="t.ventas" />
+        </div>
+      </aside>
+    }
   `,
 })
 export class Caja {
@@ -207,10 +260,19 @@ export class Caja {
     lim.setHours(h, m, 0, 0);
     return Date.now() > lim.getTime();
   });
+  protected readonly entradas = computed(() => this.turno()?.movimientos.filter((m) => m.tipo === 'ingreso').reduce((s, m) => s + m.monto, 0) ?? 0);
+  protected readonly salidas = computed(() => this.turno()?.movimientos.filter((m) => m.tipo === 'egreso').reduce((s, m) => s + m.monto, 0) ?? 0);
   protected readonly historial = computed(() => {
     const e = this.tienda.estado();
-    return e.turnos.filter((t) => t.cerradoEn).sort((a, b) => b.abiertoEn - a.abiertoEn).slice(0, 40)
+    return e.turnos.filter((t) => t.cerradoEn).sort((a, b) => b.abiertoEn - a.abiertoEn).slice(0, 60)
       .map((t) => ({ ...t, vendido: ventasDelTurno(e.ventas, t.id).reduce((s, v) => s + v.total, 0) }));
+  });
+  protected readonly detalle = signal<string | null>(null);
+  protected readonly turnoDetalle = computed(() => {
+    const t = this.tienda.estado().turnos.find((x) => x.id === this.detalle());
+    if (!t) return null;
+    const ventas = ventasDelTurno(this.tienda.estado().ventas, t.id).sort((a, b) => b.fecha - a.fecha);
+    return { ...t, ventas, vendido: ventas.reduce((s, v) => s + v.total, 0), medios: totalesPorMedio(ventas) };
   });
 
   protected readonly billetesCierre = signal<Billetes>({});
@@ -239,6 +301,19 @@ export class Caja {
   protected readonly iCandado = Lock;
   protected readonly iBillete = Banknote;
   protected readonly iOk = CircleCheck;
+  protected readonly iX = X;
+
+  mediosLista(m: Record<MedioPago, number>) {
+    return (Object.keys(m) as MedioPago[]).map((medio) => ({ medio, total: m[medio] })).filter((x) => x.total > 0);
+  }
+
+  billetesLista(b: Billetes) {
+    return Object.entries(b).filter(([, c]) => c > 0).map(([valor, cantidad]) => ({ valor, cantidad })).sort((a, b) => (b.valor === 'otros' ? -1 : +b.valor) - (a.valor === 'otros' ? -1 : +a.valor));
+  }
+
+  formatear(v: number) {
+    return v.toLocaleString('es-AR');
+  }
 
   defDe(id: string) {
     return this.tienda.estado().turnoDefs.find((d) => d.id === id);

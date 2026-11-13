@@ -24,7 +24,7 @@ import { nuevoId, Tienda } from '../core/tienda';
   template: `
     <div class="pagina">
       <div class="pagina-cab">
-        <div class="titulo"><h1>Empleadas</h1><p>Cada una entra con su usuario y contraseña, o con su PIN en la tablet compartida. Cada venta queda a su nombre.</p></div>
+        <div class="titulo"><h1>Empleadas</h1><p>Cada una entra con su usuario y contraseña. Cada venta queda a su nombre.</p></div>
         <div class="acciones"><button class="btn primario" (click)="nueva()"><lucide-icon [img]="iMas" [size]="18" />Nueva empleada</button></div>
       </div>
       <div class="lista">
@@ -37,7 +37,8 @@ import { nuevoId, Tienda } from '../core/tienda';
               @else if (!u.activo) { <span class="etiqueta">Desactivada</span> }
               @else { <span class="etiqueta ok">Activa</span> }
             </div>
-            <div class="ter fila" style="gap:6px"><lucide-icon [img]="iTel" [size]="14" />{{ u.telefono || 'Sin teléfono' }} · Último turno: {{ ultimoTurno(u.id) }}</div>
+            <div class="ter fila" style="gap:6px"><lucide-icon [img]="iTel" [size]="14" />{{ u.telefono || 'Sin teléfono' }} · {{ u.email || 'Sin email' }}</div>
+            <div class="ter">Último turno: {{ ultimoTurno(u.id) }}</div>
             <div class="permisos">
               @if (u.permisos.cobrar) { <span class="etiqueta">Cobra</span> }
               @if (u.permisos.anular) { <span class="etiqueta">Anula ventas</span> }
@@ -69,7 +70,7 @@ import { nuevoId, Tienda } from '../core/tienda';
                 <button type="button" class="btn icono chico fantasma" (click)="ver.set(!ver())" [attr.aria-label]="ver() ? 'Ocultar' : 'Ver'"><lucide-icon [img]="ver() ? iOcultar : iVer" [size]="18" /></button></span>
               <small>Al menos 6 caracteres.</small></label>
           </div>
-          <label class="campo" style="max-width:200px"><span>PIN rápido (4 números)</span><input class="input" [(ngModel)]="form.pin" inputmode="numeric" maxlength="4" /></label>
+          <label class="campo"><span>Email (para recuperar la contraseña)</span><input class="input" type="email" [(ngModel)]="form.email" autocomplete="off" /></label>
           @if (form.rol === 'empleada') {
             <div class="separador"></div>
             <h3>Qué puede hacer</h3>
@@ -115,7 +116,7 @@ export class Empleadas {
   protected readonly iEditar = Pencil;
 
   private vacia(): Usuario {
-    return { id: nuevoId('u'), nombre: '', usuario: '', contrasena: '', pin: '', rol: 'empleada', telefono: '', activo: true, permisos: { cobrar: true, anular: false, verReportes: false, editarProductos: false } };
+    return { id: nuevoId('u'), nombre: '', usuario: '', contrasena: '', email: '', rol: 'empleada', telefono: '', activo: true, permisos: { cobrar: true, anular: false, verReportes: false, editarProductos: false } };
   }
 
   ultimoTurno(id: string) {
@@ -150,8 +151,7 @@ export class Empleadas {
     if (!f.nombre.trim()) return this.error.set('Falta el nombre.');
     if (!f.usuario.trim() || !this.usuarioOk()) return this.error.set('Elegí un usuario que no esté repetido.');
     if (f.contrasena.length < 6) return this.error.set('La contraseña necesita al menos 6 caracteres.');
-    if (!/^\d{4}$/.test(f.pin)) return this.error.set('El PIN tiene que ser de 4 números.');
-    if (this.tienda.estado().usuarios.some((u) => u.id !== f.id && u.pin === f.pin)) return this.error.set('Ese PIN ya lo usa otra persona.');
+    if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return this.error.set('Ese email no parece válido.');
     this.tienda.guardarUsuario({ ...f, nombre: f.nombre.trim(), usuario: f.usuario.trim().toLowerCase() });
     this.avisos.mostrar(this.esNueva ? `Cuenta de ${f.nombre} creada` : `${f.nombre} guardada`);
     this.abierto.set(false);

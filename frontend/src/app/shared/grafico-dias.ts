@@ -11,7 +11,7 @@ import { fecha, plata, plataCorta } from '../core/formato';
     .grilla { stroke: var(--border); stroke-width: 1; }
     .barra { fill: var(--series-1); }
     .golpe { fill: transparent; cursor: pointer; }
-    .golpe:hover + .barra, .activa { fill: #1f5fb0; }
+    .golpe:hover + .barra, .activa { fill: var(--accent-text); }
     .tip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); background: var(--text); color: #fff; padding: 6px 10px; border-radius: var(--r-sm); font-size: var(--fs-sm); pointer-events: none; white-space: nowrap; box-shadow: var(--shadow-2);
       b { font-variant-numeric: tabular-nums; } }
   `,

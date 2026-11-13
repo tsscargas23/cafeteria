@@ -22,11 +22,11 @@ const todos = { cobrar: true, anular: true, verReportes: true, editarProductos: 
 const basicos = { cobrar: true, anular: false, verReportes: false, editarProductos: false };
 
 const usuarios: Usuario[] = [
-  { id: 'u-duena', nombre: 'Claudia', usuario: 'claudia', contrasena: 'cafe1234', pin: '1111', rol: 'duena', telefono: '11 5555-0101', activo: true, permisos: todos },
-  { id: 'u-lucia', nombre: 'Lucía', usuario: 'lucia', contrasena: 'lucia123', pin: '2222', rol: 'empleada', telefono: '11 5555-0102', activo: true, permisos: basicos },
-  { id: 'u-sofia', nombre: 'Sofía', usuario: 'sofia', contrasena: 'sofia123', pin: '3333', rol: 'empleada', telefono: '11 5555-0103', activo: true, permisos: basicos },
-  { id: 'u-vale', nombre: 'Valentina', usuario: 'valentina', contrasena: 'vale1234', pin: '4444', rol: 'empleada', telefono: '11 5555-0104', activo: true, permisos: { ...basicos, anular: true } },
-  { id: 'u-cami', nombre: 'Camila', usuario: 'camila', contrasena: 'cami1234', pin: '5555', rol: 'empleada', telefono: '11 5555-0105', activo: false, permisos: basicos },
+  { id: 'u-duena', nombre: 'Claudia', usuario: 'claudia', contrasena: 'cafe1234', email: 'claudia@ejemplo.com', rol: 'duena', telefono: '11 5555-0101', activo: true, permisos: todos },
+  { id: 'u-lucia', nombre: 'Lucía', usuario: 'lucia', contrasena: 'lucia123', email: 'lucia@ejemplo.com', rol: 'empleada', telefono: '11 5555-0102', activo: true, permisos: basicos },
+  { id: 'u-sofia', nombre: 'Sofía', usuario: 'sofia', contrasena: 'sofia123', email: 'sofia@ejemplo.com', rol: 'empleada', telefono: '11 5555-0103', activo: true, permisos: basicos },
+  { id: 'u-vale', nombre: 'Valentina', usuario: 'valentina', contrasena: 'vale1234', email: 'valentina@ejemplo.com', rol: 'empleada', telefono: '11 5555-0104', activo: true, permisos: { ...basicos, anular: true } },
+  { id: 'u-cami', nombre: 'Camila', usuario: 'camila', contrasena: 'cami1234', email: 'camila@ejemplo.com', rol: 'empleada', telefono: '11 5555-0105', activo: false, permisos: basicos },
 ];
 
 const insumos: Insumo[] = [

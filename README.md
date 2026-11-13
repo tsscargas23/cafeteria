@@ -19,7 +19,7 @@ Hay tres formas, de la más fácil a la de programar:
 3. **Para programar:** `cd frontend && npm install --legacy-peer-deps && npm start` (http://localhost:4200).
    El `--legacy-peer-deps` evita un error de npm 10 con jsdom.
 
-Cuentas de ejemplo: dueña `claudia` / `cafe1234` (PIN 1111), empleada `lucia` / `lucia123` (PIN 2222).
+Cuentas de ejemplo: dueña `claudia` / `cafe1234`, empleada `lucia` / `lucia123`.
 En la pantalla de entrada hay botones para entrar directo. En **Ajustes → Reiniciar la demo** vuelve todo al principio.
 Lo que se carga queda guardado solo en ese navegador.
 

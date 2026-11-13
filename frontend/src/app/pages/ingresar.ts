@@ -2,9 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
-import { iniciales } from '../core/formato';
-import { Delete, Eye, EyeOff, Lock } from '../core/iconos';
-import { Usuario } from '../core/modelos';
+import { CircleCheck, Eye, EyeOff, Lock, Mail } from '../core/iconos';
 import { Tienda } from '../core/tienda';
 
 @Component({
@@ -22,24 +20,13 @@ import { Tienda } from '../core/tienda';
     .reloj { font-size: var(--fs-sm); font-weight: 600; opacity: 0.75; }
 
     .acceso { display: grid; place-items: center; padding: 40px 24px; }
-    .caja { width: min(420px, 100%); display: flex; flex-direction: column; gap: 18px; }
+    .caja { width: min(400px, 100%); display: flex; flex-direction: column; gap: 18px; }
     .caja h1 { font-size: 28px; }
     .caja .sub { color: var(--text-2); margin-top: 4px; }
     form { display: flex; flex-direction: column; gap: 14px; }
     .clave { position: relative; .input { padding-right: 44px; } button { position: absolute; right: 4px; top: 4px; } }
-
-    .personas { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
-    .persona { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border: 1px solid var(--border-strong); border-radius: var(--r); background: var(--surface); cursor: pointer; font-weight: 600; font-size: var(--fs-sm);
-      &:hover { background: var(--surface-2); } &.activo { border-color: var(--accent-text); background: var(--accent-soft); color: var(--accent-text); } }
-    .av { width: 40px; height: 40px; border-radius: 50%; background: var(--surface-3); display: grid; place-items: center; font-weight: 700; color: var(--text-2); }
-    .activo .av { background: var(--accent); color: var(--accent-ink); }
-
-    .puntos { display: flex; justify-content: center; gap: 14px; padding: 6px 0; }
-    .punto { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border-strong); transition: background 0.15s, border-color 0.15s; &.lleno { background: var(--accent-text); border-color: var(--accent-text); } }
-    .teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 300px; margin: 0 auto; width: 100%; }
-    .tecla { min-height: 56px; font-size: 22px; font-weight: 600; border: 1px solid var(--border-strong); border-radius: var(--r); background: var(--surface); cursor: pointer; display: grid; place-items: center;
-      &:hover { background: var(--surface-2); } &:active { transform: translateY(1px); } &:disabled { opacity: 0.4; cursor: not-allowed; } }
-
+    .enlace { align-self: flex-start; background: none; border: 0; padding: 0; color: var(--accent-text); font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .ok-grande { color: var(--ok); }
     .demo { border: 1px dashed var(--border-strong); border-radius: var(--r-lg); padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: var(--fs-sm); color: var(--text-2);
       .fila .btn { flex: 1; } }
 
@@ -47,8 +34,7 @@ import { Tienda } from '../core/tienda';
       :host { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
       .marca { padding: 28px 24px; min-height: 200px; }
       .marca .nombre { font-size: 48px; }
-      .marca .frase { display: none; }
-      .marca .pie { display: none; }
+      .marca .frase, .marca .pie { display: none; }
       .taza { width: 45%; right: -6%; bottom: -30%; }
       .acceso { padding: 24px 16px 40px; align-items: start; }
     }
@@ -71,49 +57,44 @@ import { Tienda } from '../core/tienda';
 
     <section class="acceso">
       <div class="caja">
-        <div><h1>Hola, ¿quién entra?</h1><p class="sub">Elegí cómo entrar.</p></div>
-        <div class="segmentos grandes" role="tablist">
-          <button role="tab" [class.activo]="modo() === 'pin'" (click)="modo.set('pin'); error.set('')">Con PIN</button>
-          <button role="tab" [class.activo]="modo() === 'clave'" (click)="modo.set('clave'); error.set('')">Usuario y contraseña</button>
-        </div>
-
-        @if (modo() === 'clave') {
-          <form (ngSubmit)="entrar()">
-            <label class="campo"><span>Usuario</span><input class="input" name="usuario" [(ngModel)]="usuario" autocomplete="username" /></label>
-            <label class="campo"><span>Contraseña</span>
-              <span class="clave">
-                <input class="input" name="contrasena" [(ngModel)]="contrasena" [type]="ver() ? 'text' : 'password'" autocomplete="current-password" />
-                <button type="button" class="btn icono chico fantasma" (click)="ver.set(!ver())" [attr.aria-label]="ver() ? 'Ocultar contraseña' : 'Ver contraseña'"><lucide-icon [img]="ver() ? iOcultar : iVer" [size]="18" /></button>
-              </span>
-            </label>
-            @if (error()) { <p class="aviso-linea atencion" role="alert">{{ error() }}</p> }
-            <button class="btn primario grande" type="submit"><lucide-icon [img]="iCandado" [size]="18" />Entrar</button>
-          </form>
-        } @else {
-          <div class="personas" role="radiogroup" aria-label="¿Quién sos?">
-            @for (u of activos(); track u.id) {
-              <button type="button" class="persona" role="radio" [attr.aria-checked]="elegida()?.id === u.id" [class.activo]="elegida()?.id === u.id" (click)="elegir(u)">
-                <span class="av">{{ iniciales(u.nombre) }}</span>{{ u.nombre }}
-              </button>
-            }
-          </div>
-          <div class="puntos" aria-live="polite" [attr.aria-label]="elegida() ? 'PIN de ' + elegida()!.nombre + ': ' + pin().length + ' de 4' : 'Elegí tu nombre'">
-            @for (i of [0, 1, 2, 3]; track i) { <span class="punto" [class.lleno]="pin().length > i"></span> }
-          </div>
-          <div class="teclado">
-            @for (n of ['1', '2', '3', '4', '5', '6', '7', '8', '9']; track n) {
-              <button type="button" class="tecla" [disabled]="!elegida()" (click)="tecla(n)">{{ n }}</button>
-            }
-            <button type="button" class="tecla" [disabled]="!pin().length" (click)="borrar()" aria-label="Borrar"><lucide-icon [img]="iBorrar" [size]="22" /></button>
-            <button type="button" class="tecla" [disabled]="!elegida()" (click)="tecla('0')">0</button>
-            <span></span>
-          </div>
-          @if (error()) { <p class="aviso-linea atencion" role="alert">{{ error() }}</p> }
-          @else if (!elegida()) { <p class="ter" style="text-align:center">Tocá tu nombre y marcá tu PIN de 4 números.</p> }
+        @switch (vista()) {
+          @case ('entrar') {
+            <div><h1>Hola, ¿quién entra?</h1><p class="sub">Entrá con tu usuario y tu contraseña.</p></div>
+            <form (ngSubmit)="entrar()">
+              <label class="campo"><span>Usuario</span><input class="input" name="usuario" [(ngModel)]="usuario" autocomplete="username" autofocus /></label>
+              <label class="campo"><span>Contraseña</span>
+                <span class="clave">
+                  <input class="input" name="contrasena" [(ngModel)]="contrasena" [type]="ver() ? 'text' : 'password'" autocomplete="current-password" />
+                  <button type="button" class="btn icono chico fantasma" (click)="ver.set(!ver())" [attr.aria-label]="ver() ? 'Ocultar contraseña' : 'Ver contraseña'"><lucide-icon [img]="ver() ? iOcultar : iVer" [size]="18" /></button>
+                </span>
+              </label>
+              @if (error()) { <p class="aviso-linea atencion" role="alert">{{ error() }}</p> }
+              <button class="btn primario grande" type="submit"><lucide-icon [img]="iCandado" [size]="18" />Entrar</button>
+              <button type="button" class="enlace" (click)="vista.set('recuperar'); error.set('')">¿Te olvidaste la contraseña?</button>
+            </form>
+          }
+          @case ('recuperar') {
+            <div><h1>Recuperar la contraseña</h1><p class="sub">Escribí tu usuario o tu email y te mandamos un link para elegir una contraseña nueva.</p></div>
+            <form (ngSubmit)="recuperar()">
+              <label class="campo"><span>Usuario o email</span><input class="input" name="quien" [(ngModel)]="quien" autocomplete="username" autofocus /></label>
+              @if (error()) { <p class="aviso-linea atencion" role="alert">{{ error() }}</p> }
+              <button class="btn primario grande" type="submit"><lucide-icon [img]="iMail" [size]="18" />Mandar el link</button>
+              <button type="button" class="enlace" (click)="vista.set('entrar'); error.set('')">Volver</button>
+            </form>
+          }
+          @case ('enviado') {
+            <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px">
+              <lucide-icon [img]="iOk" [size]="44" class="ok-grande" />
+              <h1>Revisá tu email</h1>
+              <p class="sub">Si <b>{{ quien }}</b> está registrado, en unos minutos te llega un email a <b>{{ emailOculto() }}</b> con un link para elegir una contraseña nueva. El link vence en una hora.</p>
+              <p class="aviso-linea info" style="text-align:left">En esta demo no se manda ningún email. En el sistema real el envío lo hace el servicio de usuarios, sin pasar por ningún otro servicio externo. Si no te llega, la dueña puede cambiarte la contraseña desde «Empleadas».</p>
+              <button class="btn" (click)="vista.set('entrar')">Volver a entrar</button>
+            </div>
+          }
         }
 
         <div class="demo">
-          <span><b>Demo:</b> dueña <b>claudia</b> / <b>cafe1234</b> (PIN 1111) · empleada <b>lucia</b> / <b>lucia123</b> (PIN 2222)</span>
+          <span><b>Demo:</b> dueña <b>claudia</b> / <b>cafe1234</b> · empleada <b>lucia</b> / <b>lucia123</b></span>
           <span class="fila">
             <button class="btn chico" (click)="rapido('claudia', 'cafe1234')">Entrar como dueña</button>
             <button class="btn chico" (click)="rapido('lucia', 'lucia123')">Entrar como empleada</button>
@@ -126,39 +107,20 @@ import { Tienda } from '../core/tienda';
 export class Ingresar {
   protected readonly tienda = inject(Tienda);
   private readonly router = inject(Router);
-  protected readonly modo = signal<'clave' | 'pin'>('pin');
+  protected readonly vista = signal<'entrar' | 'recuperar' | 'enviado'>('entrar');
   protected readonly ver = signal(false);
   protected readonly error = signal('');
-  protected readonly elegida = signal<Usuario | null>(null);
-  protected readonly pin = signal('');
-  protected readonly activos = computed(() => this.tienda.estado().usuarios.filter((u) => u.activo));
+  protected readonly emailOculto = signal('');
   protected readonly nombre = computed(() => this.tienda.estado().ajustes.nombreLocal);
   protected readonly fechaHoy = capitalizar(new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }));
   protected usuario = '';
   protected contrasena = '';
-  protected readonly iniciales = iniciales;
+  protected quien = '';
   protected readonly iVer = Eye;
   protected readonly iOcultar = EyeOff;
   protected readonly iCandado = Lock;
-  protected readonly iBorrar = Delete;
-
-  elegir(u: Usuario) {
-    this.elegida.set(u);
-    this.pin.set('');
-    this.error.set('');
-  }
-
-  tecla(n: string) {
-    if (this.pin().length >= 4) return;
-    this.pin.set(this.pin() + n);
-    this.error.set('');
-    if (this.pin().length === 4) this.entrarPin();
-  }
-
-  borrar() {
-    this.pin.set(this.pin().slice(0, -1));
-    this.error.set('');
-  }
+  protected readonly iMail = Mail;
+  protected readonly iOk = CircleCheck;
 
   entrar() {
     const u = this.tienda.ingresar(this.usuario, this.contrasena);
@@ -169,14 +131,15 @@ export class Ingresar {
     this.router.navigateByUrl(u.rol === 'duena' ? '/inicio' : '/mesas');
   }
 
-  private entrarPin() {
-    const u = this.tienda.ingresarConPin(this.elegida()!.id, this.pin());
-    if (!u) {
-      this.error.set('Ese PIN no es el de ' + this.elegida()!.nombre + '. Probá de nuevo.');
-      this.pin.set('');
+  recuperar() {
+    if (!this.quien.trim()) {
+      this.error.set('Escribí tu usuario o tu email.');
       return;
     }
-    this.router.navigateByUrl(u.rol === 'duena' ? '/inicio' : '/mesas');
+    // Se muestra lo mismo exista o no el usuario, para no revelar quiénes tienen cuenta.
+    const u = this.tienda.pedirRecuperacion(this.quien);
+    this.emailOculto.set(u?.email ? ocultarEmail(u.email) : 'tu email');
+    this.vista.set('enviado');
   }
 
   rapido(usuario: string, contrasena: string) {
@@ -188,4 +151,10 @@ export class Ingresar {
 
 function capitalizar(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** cla•••@ejemplo.com */
+function ocultarEmail(e: string) {
+  const [u, d] = e.split('@');
+  return `${u.slice(0, 3)}•••@${d}`;
 }

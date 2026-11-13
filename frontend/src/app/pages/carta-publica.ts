@@ -35,7 +35,7 @@ import { categoriasOrdenadas } from './carta-qr';
       @if (mesa()) { <span class="etiqueta acento mesa">Estás en la mesa {{ mesa() }}</span> }
     </header>
     <nav aria-label="Categorías">
-      @for (c of secciones(); track c.nombre) { <a class="chip" [class.activo]="activa() === c.nombre" [href]="'#' + ancla(c.nombre)" (click)="activa.set(c.nombre)">{{ c.nombre }}</a> }
+      @for (c of secciones(); track c.nombre) { <button class="chip" [class.activo]="activa() === c.nombre" (click)="irA(c.nombre)">{{ c.nombre }}</button> }
     </nav>
     <main>
       @for (c of secciones(); track c.nombre) {
@@ -77,6 +77,12 @@ export class CartaPublica {
   protected readonly iTel = Phone;
 
   ancla(nombre: string) {
-    return nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '-');
+    return 'cat-' + nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-');
+  }
+
+  /** Baja hasta la categoría sin cambiar la dirección (con # en la URL el navegador la tomaría como otra pantalla). */
+  irA(nombre: string) {
+    this.activa.set(nombre);
+    document.getElementById(this.ancla(nombre))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }

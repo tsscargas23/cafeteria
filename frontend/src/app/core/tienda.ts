@@ -77,10 +77,13 @@ export class Tienda {
     return u ?? null;
   }
 
-  ingresarConPin(usuarioId: string, pin: string): Usuario | null {
-    const u = this._estado().usuarios.find((x) => x.id === usuarioId && x.pin === pin && x.activo);
-    if (u) this.fijarSesion(u.id);
-    return u ?? null;
+  /**
+   * Recuperar la contraseña. En el sistema real, Supabase manda un email con un link para elegir una nueva;
+   * en la demo solo se confirma si el usuario o el email existen.
+   */
+  pedirRecuperacion(usuarioOEmail: string): Usuario | null {
+    const q = usuarioOEmail.trim().toLowerCase();
+    return this._estado().usuarios.find((x) => x.activo && (x.usuario.toLowerCase() === q || x.email.toLowerCase() === q)) ?? null;
   }
 
   salir() {
@@ -548,6 +551,7 @@ function migrar(e: Estado | null): Estado | null {
   const base = estadoInicial().ajustes;
   e.ajustes = { ...base, ...e.ajustes, carta: { ...base.carta, ...(e.ajustes.carta ?? {}) } };
   if (e.ajustes.nombreLocal === 'Café La Esquina') e.ajustes.nombreLocal = base.nombreLocal;
+  for (const u of e.usuarios) if (u.email === undefined) u.email = '';
   return e;
 }
 
