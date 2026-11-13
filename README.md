@@ -36,4 +36,6 @@ frontend/src/app/
   shared/             ticket imprimible, gráfico por día, filtro de selección múltiple
 ```
 
+Cuentas que abre la clienta para el sistema real: `docs/CUENTAS.md`.
+
 Tests: `npx ng test --watch=false`. Diseño: `PRODUCT.md` y `DESIGN.md` (estilo estándar tipo Fudo, elegido con la clienta en mente).
