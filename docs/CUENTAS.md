@@ -1,6 +1,6 @@
 # Cuentas que abre la dueña de Panacota
 
-> Guía para ir adelantando el alojamiento. Escrita el 2026-11-13. Los precios son los que se veían a esa fecha: conviene
+> Guía para ir adelantando el alojamiento. Escrita el 2026-11-13. **Email del negocio creado: panacotacafe@gmail.com** (paso 1 listo). Los precios son los que se veían a esa fecha: conviene
 > confirmarlos en cada sitio antes de pagar.
 
 **La regla:** todas las cuentas se abren con **un email del negocio** y quedan a nombre de la dueña. Alejo no necesita
