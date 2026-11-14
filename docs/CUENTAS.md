@@ -1,6 +1,10 @@
 # Cuentas que abre la dueña de Panacota
 
-> Guía para ir adelantando el alojamiento. Escrita el 2026-11-13. **Email del negocio creado: panacotacafe@gmail.com** (paso 1 listo). Los precios son los que se veían a esa fecha: conviene
+> Guía para ir adelantando el alojamiento. Escrita el 2026-11-13. **Email del negocio creado: panacotacafe@gmail.com** (paso 1 listo).
+>
+> **2026-11-14:** Supabase (organización «Panacota», plan Free) y Cloudflare creados con ese email. Alejo invitado en los dos
+> (`alejotassello23@gmail.com`: Owner en Supabase, Super Administrator en Cloudflare). En Cloudflare la verificación en dos
+> pasos está por código al email; falta sumar la app del celular. Pendiente: proyecto de Supabase y dominio. Los precios son los que se veían a esa fecha: conviene
 > confirmarlos en cada sitio antes de pagar.
 
 **La regla:** todas las cuentas se abren con **un email del negocio** y quedan a nombre de la dueña. Alejo no necesita
