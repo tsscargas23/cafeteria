@@ -7,7 +7,11 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "demo:html": "ng build --output-hashing none && node scripts/empaquetar-demo.mjs"
+    "demo:html": "ng build --output-hashing none && node scripts/empaquetar-demo.mjs",
+    "entorno": "node scripts/entorno.mjs",
+    "prestart": "npm run entorno",
+    "prebuild": "npm run entorno",
+    "pretest": "npm run entorno"
   },
   "private": true,
   "packageManager": "npm@10.9.2",
@@ -18,6 +22,7 @@
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
+    "@supabase/supabase-js": "^2.119.0",
     "@types/qrcode": "^1.5.6",
     "lucide-angular": "^1.0.0",
     "qrcode": "^1.5.4",

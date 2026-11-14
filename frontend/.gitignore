@@ -42,3 +42,7 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Credenciales y archivo generado con ellas
+.env
+src/environments/environment.generado.ts
