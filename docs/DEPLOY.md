@@ -31,7 +31,8 @@ navegador: precios, totales y permisos se validan en la base.
    las claves nuevas pueden dar 401).
 2c. Igual con la función `ingresar` (`supabase/functions/ingresar/index.ts`), también con **«Verify JWT» apagado** (quien
    la llama todavía no tiene sesión). Hace el ingreso por nombre de usuario sin devolver el email al navegador y bloquea
-   15 minutos un usuario tras 5 intentos fallidos. Requiere la migración `0003_ingreso_seguro.sql`.
+   15 minutos un usuario tras 5 intentos fallidos. Requiere las migraciones `0003_ingreso_seguro.sql` y
+   `0004_usuarios_en_minuscula.sql` (usuarios siempre en minúscula y con formato fijo; búsqueda exacta, sin `ilike`).
    Nota para la auditoría: el límite de intentos de Supabase Auth es por IP, y en este flujo la IP es la de la función.
 3. **Authentication → Providers**: dejar solo **Email** (sin Google ni otros). En *Email*, desactivar «Confirm email»
    si las cuentas las crea la dueña a mano, o dejarlo activo si cada empleada confirma la suya.

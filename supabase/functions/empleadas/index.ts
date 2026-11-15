@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     if (!nombre || !/^[a-z0-9._-]{3,30}$/.test(usuario)) return respuesta({ error: 'Nombre o usuario inválido (usuario: 3 a 30 letras o números, sin espacios).' }, 400);
     if (contrasena.length < 8) return respuesta({ error: 'La contraseña necesita al menos 8 caracteres.' }, 400);
     if (!EMAIL.test(email)) return respuesta({ error: 'Hace falta un email válido para la cuenta.' }, 400);
-    const { data: repetido } = await admin.from('usuarios').select('id').ilike('usuario', usuario).maybeSingle();
+    const { data: repetido } = await admin.from('usuarios').select('id').eq('usuario', usuario).maybeSingle();
     if (repetido) return respuesta({ error: 'Ese usuario ya existe.' }, 409);
 
     const { data: creado, error } = await admin.auth.admin.createUser({ email, password: contrasena, email_confirm: true });
