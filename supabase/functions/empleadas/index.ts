@@ -3,6 +3,21 @@
 // Solo la ejecuta una persona con sesión que sea la dueña activa.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+/**
+ * Claves del proyecto que Supabase pone en el entorno de la función. Se prueban las nuevas (sb_publishable / sb_secret,
+ * en JSON) y, si no están, las "legacy" (anon / service_role), que Supabase deja de aceptar más adelante.
+ */
+function clave(tipo: 'publica' | 'secreta'): string {
+  const nuevas = Deno.env.get(tipo === 'publica' ? 'SUPABASE_PUBLISHABLE_KEYS' : 'SUPABASE_SECRET_KEYS');
+  if (nuevas) {
+    try {
+      const valores = Object.values(JSON.parse(nuevas) as Record<string, string>);
+      if (valores[0]) return valores[0];
+    } catch { /* formato inesperado: se usa la legacy */ }
+  }
+  return Deno.env.get(tipo === 'publica' ? 'SUPABASE_ANON_KEY' : 'SUPABASE_SERVICE_ROLE_KEY')!;
+}
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -19,7 +34,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return respuesta({ error: 'Método no permitido' }, 405);
 
-  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, clave('secreta'), { auth: { persistSession: false } });
 
   // ¿Quién llama? Tiene que ser la dueña activa.
   const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');

@@ -26,7 +26,13 @@ navegador: precios, totales y permisos se validan en la base.
    desactivado, solo Email, dueña creada con `panacotacafe@gmail.com`.
 2b. **Edge Functions → Deploy a new function → Via Editor**: nombre `empleadas`, código de
    `supabase/functions/empleadas/index.ts`. Es la que crea cuentas de empleadas y cambia contraseñas (usa la clave de
-   servicio, que Supabase pone sola y nunca llega al navegador).
+   servicio, que Supabase pone sola y nunca llega al navegador). En su configuración, **«Verify JWT» apagado**: la función
+   valida por su cuenta que quien llama sea la dueña activa (con la opción «legacy» prendida, las sesiones firmadas con
+   las claves nuevas pueden dar 401).
+2c. Igual con la función `ingresar` (`supabase/functions/ingresar/index.ts`), también con **«Verify JWT» apagado** (quien
+   la llama todavía no tiene sesión). Hace el ingreso por nombre de usuario sin devolver el email al navegador y bloquea
+   15 minutos un usuario tras 5 intentos fallidos. Requiere la migración `0003_ingreso_seguro.sql`.
+   Nota para la auditoría: el límite de intentos de Supabase Auth es por IP, y en este flujo la IP es la de la función.
 3. **Authentication → Providers**: dejar solo **Email** (sin Google ni otros). En *Email*, desactivar «Confirm email»
    si las cuentas las crea la dueña a mano, o dejarlo activo si cada empleada confirma la suya.
 4. **Authentication → URL Configuration**: Site URL = la dirección final (`https://panacota.pages.dev`). En Redirect URLs,

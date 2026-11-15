@@ -70,7 +70,7 @@ import { Tienda } from '../core/tienda';
           @case ('entrar') {
             <div><h1>Hola, ¿quién entra?</h1><p class="sub">Entrá con tu usuario y tu contraseña.</p></div>
             <form (ngSubmit)="entrar()">
-              <label class="campo"><span>Usuario</span><input class="input" name="usuario" [(ngModel)]="usuario" autocomplete="username" autofocus /></label>
+              <label class="campo"><span>Usuario</span><input class="input" name="usuario" [(ngModel)]="usuario" autocomplete="username" autocapitalize="none" autofocus /></label>
               <label class="campo"><span>Contraseña</span>
                 <span class="clave">
                   <input class="input" name="contrasena" [(ngModel)]="contrasena" [type]="ver() ? 'text' : 'password'" autocomplete="current-password" />
@@ -83,9 +83,9 @@ import { Tienda } from '../core/tienda';
             </form>
           }
           @case ('recuperar') {
-            <div><h1>Recuperar la contraseña</h1><p class="sub">Escribí tu usuario o tu email y te mandamos un link para elegir una contraseña nueva.</p></div>
+            <div><h1>Recuperar la contraseña</h1><p class="sub">Escribí el email de tu cuenta y te mandamos un link para elegir una contraseña nueva.</p></div>
             <form (ngSubmit)="recuperar()">
-              <label class="campo"><span>Usuario o email</span><input class="input" name="quien" [(ngModel)]="quien" autocomplete="username" autofocus /></label>
+              <label class="campo"><span>Email</span><input class="input" name="quien" type="email" [(ngModel)]="quien" autocomplete="email" autofocus /></label>
               @if (error()) { <p class="aviso-linea atencion" role="alert">{{ error() }}</p> }
               <button class="btn primario grande" type="submit" [disabled]="enviando()"><lucide-icon [img]="iMail" [size]="18" />Mandar el link</button>
               <button type="button" class="enlace" (click)="vista.set('entrar'); error.set('')">Volver</button>
@@ -95,7 +95,7 @@ import { Tienda } from '../core/tienda';
             <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px">
               <lucide-icon [img]="iOk" [size]="44" class="ok-grande" />
               <h1>Revisá tu email</h1>
-              <p class="sub">Si <b>{{ quien }}</b> está registrado, en unos minutos te llega un email a <b>{{ emailOculto() }}</b> con un link para elegir una contraseña nueva. El link vence en una hora.</p>
+              <p class="sub">Si <b>{{ quien }}</b> tiene una cuenta, en unos minutos le llega un email con un link para elegir una contraseña nueva. El link vence en una hora. Revisá también la carpeta de spam.</p>
               @if (!tienda.real) { <p class="aviso-linea info" style="text-align:left">En esta demo no se manda ningún email. En el sistema real lo manda el servicio de usuarios.</p> }
               <p class="ter">Abrí el link desde esta misma computadora o celular. Si no te llega, la dueña puede cambiarte la contraseña desde «Empleadas».</p>
               <button class="btn" (click)="vista.set('entrar')">Volver a entrar</button>
@@ -123,7 +123,6 @@ export class Ingresar {
   protected readonly vista = signal<'entrar' | 'recuperar' | 'enviado'>('entrar');
   protected readonly ver = signal(false);
   protected readonly error = signal('');
-  protected readonly emailOculto = signal('');
   protected readonly enviando = signal(false);
   protected nueva1 = '';
   protected nueva2 = '';
@@ -153,15 +152,14 @@ export class Ingresar {
   }
 
   async recuperar() {
-    if (!this.quien.trim()) {
-      this.error.set('Escribí tu usuario o tu email.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.quien.trim())) {
+      this.error.set('Escribí el email de tu cuenta.');
       return;
     }
     this.enviando.set(true);
-    // Se muestra lo mismo exista o no el usuario, para no revelar quiénes tienen cuenta.
-    const email = await this.tienda.pedirRecuperacion(this.quien).catch(() => null);
+    // Se muestra lo mismo exista o no la cuenta, para no revelar quiénes tienen cuenta.
+    await this.tienda.pedirRecuperacion(this.quien).catch(() => undefined);
     this.enviando.set(false);
-    this.emailOculto.set(email ? ocultarEmail(email) : 'tu email');
     this.vista.set('enviado');
   }
 
@@ -185,10 +183,4 @@ export class Ingresar {
 
 function capitalizar(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-/** cla•••@ejemplo.com */
-function ocultarEmail(e: string) {
-  const [u, d] = e.split('@');
-  return `${u.slice(0, 3)}•••@${d}`;
 }

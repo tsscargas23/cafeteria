@@ -159,15 +159,30 @@ export class Tienda {
       this.fijarSesion(u.id);
       return u;
     }
-    const email = await this.emailDe(usuario);
-    if (!email) return 'El usuario o la contraseña no coinciden. Revisalos y probá de nuevo.';
-    const { data, error } = await this.sb.auth.signInWithPassword({ email, password: contrasena });
-    if (error || !data.user) {
-      if (/rate|too many/i.test(error?.message ?? '')) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.';
-      return 'El usuario o la contraseña no coinciden. Revisalos y probá de nuevo.';
+    const generico = 'El usuario o la contraseña no coinciden. Revisalos y probá de nuevo.';
+    let idUsuario: string;
+    if (usuario.includes('@')) {
+      // Con email, directo contra Supabase.
+      const { data, error } = await this.sb.auth.signInWithPassword({ email: usuario.trim().toLowerCase(), password: contrasena });
+      if (error || !data.user) return /rate|too many/i.test(error?.message ?? '') ? 'Demasiados intentos. Esperá unos minutos y probá de nuevo.' : generico;
+      idUsuario = data.user.id;
+    } else {
+      // Con nombre de usuario, por la función "ingresar": busca el email en el servidor y devuelve solo la sesión.
+      const { data, error } = await this.sb.functions.invoke('ingresar', { body: { usuario, contrasena } });
+      if (error || !data?.access_token) {
+        let mensaje = generico;
+        try {
+          const detalle = await (error as { context?: Response } | null)?.context?.json();
+          if (detalle?.error) mensaje = detalle.error;
+        } catch { /* sin detalle */ }
+        return mensaje;
+      }
+      const { data: s, error: errSesion } = await this.sb.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
+      if (errSesion || !s.user) return generico;
+      idUsuario = s.user.id;
     }
     try {
-      await this.entrarCon(data.user.id);
+      await this.entrarCon(idUsuario);
     } catch {
       await this.sb.auth.signOut();
       return 'Entraste, pero no se pudieron cargar los datos. Revisá internet y probá de nuevo.';
@@ -180,27 +195,14 @@ export class Tienda {
     return u;
   }
 
-  private async emailDe(usuarioOEmail: string): Promise<string | null> {
-    const q = usuarioOEmail.trim();
-    if (q.includes('@')) return q.toLowerCase();
-    const { data } = await this.sb!.rpc('email_para_ingresar', { p_usuario: q });
-    return (data as string | null) ?? null;
-  }
-
   /**
    * Recuperar la contraseña: Supabase manda un email con un link para elegir una nueva.
-   * En la demo no se manda nada. Devuelve el email (oculto en pantalla) o null.
+   * Se pide el email (no el usuario) y la respuesta es la misma exista o no la cuenta, para no revelar quién la tiene.
    */
-  async pedirRecuperacion(usuarioOEmail: string): Promise<string | null> {
-    if (!this.sb) {
-      const q = usuarioOEmail.trim().toLowerCase();
-      return this._estado().usuarios.find((x) => x.activo && (x.usuario.toLowerCase() === q || x.email.toLowerCase() === q))?.email ?? null;
-    }
-    const email = await this.emailDe(usuarioOEmail);
-    if (!email) return null;
+  async pedirRecuperacion(email: string): Promise<void> {
+    if (!this.sb) return;
     // Vuelve a la misma página; Supabase agrega "?code=..." y la app pide la contraseña nueva.
-    await this.sb.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}${location.pathname}?recuperar=1` });
-    return email;
+    await this.sb.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: `${location.origin}${location.pathname}?recuperar=1` });
   }
 
   /** Guarda la contraseña nueva después de entrar por el link del email. */
