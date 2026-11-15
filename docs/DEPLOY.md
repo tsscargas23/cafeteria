@@ -33,7 +33,9 @@ navegador: precios, totales y permisos se validan en la base.
    la llama todavía no tiene sesión). Hace el ingreso por nombre de usuario sin devolver el email al navegador y bloquea
    15 minutos un usuario tras 5 intentos fallidos. Requiere las migraciones `0003_ingreso_seguro.sql` y
    `0004_usuarios_en_minuscula.sql` (usuarios siempre en minúscula y con formato fijo; búsqueda exacta, sin `ilike`).
-   Después, `0005_permisos_y_tiempo_real.sql` (arregla `permiso()` y suma `insumos` al tiempo real).
+   Después, `0005_permisos_y_tiempo_real.sql` (arregla `permiso()` y suma `insumos` al tiempo real),
+   `0006_stock_con_mas_decimales.sql` y `0007_carta_publica.sql` (la carta del QR se lee sin sesión por la función
+   `carta_publica()`, que devuelve solo nombres, tamaños, precios y descripciones).
    Nota para la auditoría: el límite de intentos de Supabase Auth es por IP, y en este flujo la IP es la de la función.
 3. **Authentication → Providers**: dejar solo **Email** (sin Google ni otros). En *Email*, desactivar «Confirm email»
    si las cuentas las crea la dueña a mano, o dejarlo activo si cada empleada confirma la suya.
@@ -57,6 +59,11 @@ Desde el panel en modo real, la dueña importa productos e insumos con los Excel
 Alternativa: un script `supabase/seed.sql` con los datos que ella pase (pendiente).
 
 ## 3. Cloudflare Pages (una sola vez)
+
+**Hecho el 2026-11-14:** proyecto `panacota` → **https://panacota.pages.dev**, conectado a `tsscargas23/cafeteria`
+(acceso de GitHub solo a ese repositorio). El `.npmrc` de `frontend/` hace que el `npm ci` automático de Cloudflare use
+`legacy-peer-deps`, igual que en la Mac. Si un día se deja de trabajar juntos, el sitio publicado sigue andando con la
+última versión; solo deja de actualizarse.
 
 1. Entrar con `panacotacafe@gmail.com` → **Workers & Pages → Create → Pages → Connect to Git** → elegir el repositorio
    `tsscargas23/cafeteria` (Cloudflare pide autorizar GitHub; lo hace Alejo con su cuenta la primera vez).

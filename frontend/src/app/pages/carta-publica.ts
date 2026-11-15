@@ -1,9 +1,21 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { plata } from '../core/formato';
 import { Coffee, Phone } from '../core/iconos';
+import { Supabase } from '../core/supabase';
 import { Tienda } from '../core/tienda';
 import { categoriasOrdenadas } from './carta-qr';
+
+interface DatosCarta {
+  nombreLocal: string;
+  direccion: string;
+  telefono: string;
+  frase: string;
+  aviso: string;
+  ordenCategorias: string[];
+  categorias: string[];
+  productos: { id: string; nombre: string; categoria: string; descripcion: string; variantes: { id: string; nombre: string; precio: number }[] }[];
+}
 
 /** La carta que ve el cliente al escanear el QR. Sin login, pensada para celular. */
 @Component({
@@ -29,15 +41,17 @@ import { categoriasOrdenadas } from './carta-qr';
   template: `
     <header>
       <span class="logo"><lucide-icon [img]="iCafe" [size]="26" /></span>
-      <h1>{{ ajustes().nombreLocal }}</h1>
-      @if (ajustes().carta.frase) { <p class="frase">{{ ajustes().carta.frase }}</p> }
-      <p>{{ ajustes().direccion }}</p>
+      <h1>{{ d().nombreLocal }}</h1>
+      @if (d().frase) { <p class="frase">{{ d().frase }}</p> }
+      @if (d().direccion) { <p>{{ d().direccion }}</p> }
       @if (mesa()) { <span class="etiqueta acento mesa">Estás en la mesa {{ mesa() }}</span> }
     </header>
     <nav aria-label="Categorías">
       @for (c of secciones(); track c.nombre) { <button class="chip" [class.activo]="activa() === c.nombre" (click)="irA(c.nombre)">{{ c.nombre }}</button> }
     </nav>
     <main>
+      @if (cargando()) { <p class="ter" style="padding:24px 0;text-align:center">Cargando la carta…</p> }
+      @else if (!secciones().length) { <p class="ter" style="padding:24px 0;text-align:center">La carta todavía no tiene productos.</p> }
       @for (c of secciones(); track c.nombre) {
         <section [id]="ancla(c.nombre)">
           <h2>{{ c.nombre }}</h2>
@@ -54,8 +68,8 @@ import { categoriasOrdenadas } from './carta-qr';
       }
     </main>
     <footer>
-      <span><lucide-icon [img]="iTel" [size]="14" /> {{ ajustes().telefono }}</span>
-      @if (ajustes().carta.aviso) { <span>{{ ajustes().carta.aviso }}</span> }
+      @if (d().telefono) { <span><lucide-icon [img]="iTel" [size]="14" /> {{ d().telefono }}</span> }
+      @if (d().aviso) { <span>{{ d().aviso }}</span> }
       <span>Precios en pesos. Pedíselo a quien te atiende.</span>
     </footer>
   `,
@@ -64,14 +78,44 @@ export class CartaPublica {
   private readonly tienda = inject(Tienda);
   readonly mesa = input<string>();
   protected readonly activa = signal<string | null>(null);
-  protected readonly ajustes = computed(() => this.tienda.estado().ajustes);
-  protected readonly secciones = computed(() => {
+  private readonly sb = inject(Supabase).cliente;
+  /** En el sistema real, lo que devuelve la función pública carta_publica() (los clientes no tienen sesión). */
+  private readonly remota = signal<DatosCarta | null>(null);
+  protected readonly cargando = computed(() => this.sb !== null && this.remota() === null);
+
+  /** Datos de la carta: de la base (sistema real) o del estado en memoria (demo). */
+  protected readonly d = computed<DatosCarta>(() => {
+    if (this.sb) return this.remota() ?? { nombreLocal: 'Panacota', direccion: '', telefono: '', frase: '', aviso: '', ordenCategorias: [], categorias: [], productos: [] };
     const e = this.tienda.estado();
     const ocultos = e.ajustes.carta.ocultos;
-    return categoriasOrdenadas(e.categorias, e.ajustes.carta.ordenCategorias)
-      .map((nombre) => ({ nombre, productos: e.productos.filter((p) => p.categoria === nombre && p.activo && p.dondeSeVende !== 'online' && !ocultos.includes(p.id)) }))
+    return {
+      nombreLocal: e.ajustes.nombreLocal, direccion: e.ajustes.direccion, telefono: e.ajustes.telefono, frase: e.ajustes.carta.frase,
+      aviso: e.ajustes.carta.aviso, ordenCategorias: e.ajustes.carta.ordenCategorias, categorias: e.categorias,
+      productos: e.productos.filter((p) => p.activo && p.dondeSeVende !== 'online' && !ocultos.includes(p.id)),
+    };
+  });
+  protected readonly secciones = computed(() => {
+    const d = this.d();
+    return categoriasOrdenadas(d.categorias, d.ordenCategorias)
+      .map((nombre) => ({ nombre, productos: d.productos.filter((p) => p.categoria === nombre) }))
       .filter((s) => s.productos.length);
   });
+
+  constructor() {
+    if (!this.sb) return;
+    void this.cargar();
+    // Dentro de la vista previa de "Carta QR" se refresca seguido, para ver al instante lo que se edita.
+    if (window.self !== window.top) {
+      const t = setInterval(() => void this.cargar(), 3000);
+      inject(DestroyRef).onDestroy(() => clearInterval(t));
+    }
+  }
+
+  private async cargar() {
+    const { data, error } = await this.sb!.rpc('carta_publica');
+    if (!error && data) this.remota.set(data as DatosCarta);
+    else if (!this.remota()) this.remota.set({ nombreLocal: 'Panacota', direccion: '', telefono: '', frase: '', aviso: '', ordenCategorias: [], categorias: [], productos: [] });
+  }
   protected readonly plata = plata;
   protected readonly iCafe = Coffee;
   protected readonly iTel = Phone;
