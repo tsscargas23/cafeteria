@@ -99,7 +99,7 @@ export class Inicio {
   private readonly ventasHoy = computed(() => filtrarVentas(this.tienda.estado().ventas, this.fHoy, []));
   protected readonly hoy = computed(() => resumen(this.ventasHoy(), this.fHoy));
   protected readonly cambioHoy = computed(() => variacion(this.hoy().total, resumen(filtrarVentas(this.tienda.estado().ventas, this.fSemanaPasada, []), this.fSemanaPasada).total));
-  protected readonly kilosHoy = computed(() => Math.round(kilosCafe(this.ventasHoy(), this.fHoy, this.tienda.estado().productos, 'i-cafe') * 100) / 100);
+  protected readonly kilosHoy = computed(() => Math.round(kilosCafe(this.ventasHoy(), this.fHoy, this.tienda.estado().productos, this.tienda.insumoCafe()?.id ?? '') * 100) / 100);
   protected readonly abierto = computed(() => this.tienda.estado().cuentas.reduce((s, c) => s + c.items.reduce((a, i) => a + i.precio * i.cantidad, 0) - c.pagos.reduce((a, p) => a + p.monto, 0), 0));
   protected readonly catorce = computed(() => {
     const f = filtrosVacios(inicioDelDia(this.ahora) - 13 * 86_400_000, this.ahora + 1);

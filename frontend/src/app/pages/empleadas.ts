@@ -65,12 +65,13 @@ import { nuevoId, Tienda } from '../core/tienda';
           <div class="grilla-2">
             <label class="campo"><span>Usuario</span><input class="input" [(ngModel)]="form.usuario" autocomplete="off" [class.invalido]="!usuarioOk()" />
               @if (!usuarioOk()) { <span class="error">Ese usuario ya existe.</span> }</label>
-            <label class="campo"><span>Contraseña</span>
-              <span class="clave"><input class="input" [(ngModel)]="form.contrasena" [type]="ver() ? 'text' : 'password'" autocomplete="new-password" />
+            <label class="campo"><span>{{ esNueva || !tienda.real ? 'Contraseña' : 'Contraseña nueva (opcional)' }}</span>
+              <span class="clave"><input class="input" [(ngModel)]="form.contrasena" [type]="ver() ? 'text' : 'password'" autocomplete="new-password" [placeholder]="esNueva || !tienda.real ? '' : 'Dejala vacía para no cambiarla'" />
                 <button type="button" class="btn icono chico fantasma" (click)="ver.set(!ver())" [attr.aria-label]="ver() ? 'Ocultar' : 'Ver'"><lucide-icon [img]="ver() ? iOcultar : iVer" [size]="18" /></button></span>
-              <small>Al menos 6 caracteres.</small></label>
+              <small>Al menos 8 caracteres. Pasásela en persona, no por mensaje.</small></label>
           </div>
-          <label class="campo"><span>Email (para recuperar la contraseña)</span><input class="input" type="email" [(ngModel)]="form.email" autocomplete="off" /></label>
+          <label class="campo"><span>Email{{ tienda.real ? '' : ' (para recuperar la contraseña)' }}</span><input class="input" type="email" [(ngModel)]="form.email" autocomplete="off" />
+            @if (tienda.real) { <small>Con este email entra si se olvida el usuario, y le llega el link si se olvida la contraseña.</small> }</label>
           @if (form.rol === 'empleada') {
             <div class="separador"></div>
             <h3>Qué puede hacer</h3>
@@ -80,7 +81,7 @@ import { nuevoId, Tienda } from '../core/tienda';
               <label class="interruptor"><input type="checkbox" [(ngModel)]="form.permisos.verReportes" />Ver reportes</label>
               <label class="interruptor"><input type="checkbox" [(ngModel)]="form.permisos.editarProductos" />Editar productos y precios</label>
             </div>
-            <p class="ter">En la demo, los reportes, productos y ajustes solo los ve la dueña.</p>
+            <p class="ter">Reportes, productos y ajustes, por ahora, solo los ve la dueña.</p>
             @if (!esNueva) {
               <div class="separador"></div>
               <label class="interruptor"><input type="checkbox" [(ngModel)]="form.activo" />Cuenta activa</label>
@@ -91,7 +92,7 @@ import { nuevoId, Tienda } from '../core/tienda';
         </div>
         <div class="lateral-pie">
           <button class="btn" (click)="abierto.set(false)">Cancelar</button>
-          <button class="btn primario" (click)="guardar()">Guardar</button>
+          <button class="btn primario" (click)="guardar()" [disabled]="guardando()">{{ guardando() ? 'Guardando…' : 'Guardar' }}</button>
         </div>
       </aside>
     }
@@ -103,6 +104,7 @@ export class Empleadas {
   protected readonly abierto = signal(false);
   protected readonly ver = signal(false);
   protected readonly error = signal('');
+  protected readonly guardando = signal(false);
   protected form: Usuario = this.vacia();
   protected esNueva = false;
   protected readonly usuarios = computed(() => [...this.tienda.estado().usuarios].sort((a, b) => Number(b.rol === 'duena') - Number(a.rol === 'duena') || Number(b.activo) - Number(a.activo)));
@@ -136,7 +138,7 @@ export class Empleadas {
   }
 
   editar(u: Usuario) {
-    this.form = structuredClone(u);
+    this.form = { ...structuredClone(u), contrasena: this.tienda.real ? '' : u.contrasena };
     this.esNueva = false;
     this.error.set('');
     this.abierto.set(true);
@@ -146,13 +148,18 @@ export class Empleadas {
     if (this.esNueva) this.form.usuario = this.form.nombre.trim().split(/\s+/)[0]?.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '') ?? '';
   }
 
-  guardar() {
+  async guardar() {
     const f = this.form;
     if (!f.nombre.trim()) return this.error.set('Falta el nombre.');
-    if (!f.usuario.trim() || !this.usuarioOk()) return this.error.set('Elegí un usuario que no esté repetido.');
-    if (f.contrasena.length < 6) return this.error.set('La contraseña necesita al menos 6 caracteres.');
+    if (!/^[a-z0-9._-]{3,30}$/i.test(f.usuario.trim()) || !this.usuarioOk()) return this.error.set('Elegí un usuario de 3 a 30 letras o números, sin espacios, que no esté repetido.');
+    const pideClave = this.esNueva || !this.tienda.real;
+    if ((pideClave || f.contrasena) && f.contrasena.length < 8) return this.error.set('La contraseña necesita al menos 8 caracteres.');
+    if (this.tienda.real && !f.email) return this.error.set('Hace falta un email para la cuenta.');
     if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return this.error.set('Ese email no parece válido.');
-    this.tienda.guardarUsuario({ ...f, nombre: f.nombre.trim(), usuario: f.usuario.trim().toLowerCase() });
+    this.guardando.set(true);
+    const error = await this.tienda.guardarUsuario({ ...f, nombre: f.nombre.trim(), usuario: f.usuario.trim().toLowerCase(), email: f.email.trim().toLowerCase() });
+    this.guardando.set(false);
+    if (error) return this.error.set(error);
     this.avisos.mostrar(this.esNueva ? `Cuenta de ${f.nombre} creada` : `${f.nombre} guardada`);
     this.abierto.set(false);
   }

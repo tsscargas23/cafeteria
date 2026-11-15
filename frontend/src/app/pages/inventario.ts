@@ -187,7 +187,7 @@ export class Inventario {
   protected readonly valorTotal = computed(() => this.tienda.estado().insumos.reduce((s, i) => s + Math.max(0, i.stock) * i.costo, 0));
   protected readonly cafe = computed(() => {
     const e = this.tienda.estado();
-    const i = e.insumos.find((x) => x.id === 'i-cafe');
+    const i = this.tienda.insumoCafe();
     if (!i) return null;
     const hasta = Date.now();
     const desde = hasta - 14 * 86_400_000;

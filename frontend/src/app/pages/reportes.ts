@@ -225,7 +225,7 @@ export class Reportes {
   protected readonly anuladas = computed(() => this.tienda.estado().ventas.filter((v) => v.anulada && v.fecha >= this.desde() && v.fecha <= this.hasta()).length);
   protected readonly filtraProducto = computed(() => this.productos().length > 0 || this.categorias().length > 0);
   protected readonly hayFiltros = computed(() => [this.productos(), this.categorias(), this.empleadas(), this.turnos(), this.medios(), this.origenes()].some((l) => l.length));
-  protected readonly kilos = computed(() => Math.round(kilosCafe(this.lista(), this.filtros(), this.tienda.estado().productos, 'i-cafe') * 10) / 10);
+  protected readonly kilos = computed(() => Math.round(kilosCafe(this.lista(), this.filtros(), this.tienda.estado().productos, this.tienda.insumoCafe()?.id ?? '') * 10) / 10);
   protected readonly promedioCafes = computed(() => {
     const abiertos = this.dias().filter((d) => d.ventas > 0).length || 1;
     return Math.round(this.r().cafes / abiertos);

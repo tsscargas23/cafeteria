@@ -19,11 +19,19 @@ navegador: precios, totales y permisos se validan en la base.
 1. Entrar con `panacotacafe@gmail.com` → organización **Panacota** → **New project**.
    - Name: `panacota` · Region: **South America (São Paulo)** (la más cercana) · Database password: generar una fuerte y
      guardarla en el gestor de contraseñas de la dueña (no se usa a diario).
-2. **SQL Editor** → pegar `supabase/migrations/0001_inicial.sql` → Run. Crea tablas, permisos, tiempo real y reportes.
+2. **SQL Editor** → correr, en orden, `supabase/migrations/0001_inicial.sql` y `0002_ventas_y_permisos.sql`. Crean tablas,
+   permisos, tiempo real, las funciones de venta/anulación/ingreso y los datos iniciales (categorías, turnos, salones y
+   las 12 mesas). Se pueden volver a correr sin romper nada.
+   **Hecho el 2026-11-14:** proyecto `panacota` (ref `bwqwmruqzjzzwxukskqr`, São Paulo), 0001 aplicada, registro abierto
+   desactivado, solo Email, dueña creada con `panacotacafe@gmail.com`.
+2b. **Edge Functions → Deploy a new function → Via Editor**: nombre `empleadas`, código de
+   `supabase/functions/empleadas/index.ts`. Es la que crea cuentas de empleadas y cambia contraseñas (usa la clave de
+   servicio, que Supabase pone sola y nunca llega al navegador).
 3. **Authentication → Providers**: dejar solo **Email** (sin Google ni otros). En *Email*, desactivar «Confirm email»
    si las cuentas las crea la dueña a mano, o dejarlo activo si cada empleada confirma la suya.
-4. **Authentication → URL Configuration**: Site URL = la dirección final (`https://panacota.com.ar`), y agregar la misma en
-   Redirect URLs. Es a donde vuelve el link de «recuperar contraseña».
+4. **Authentication → URL Configuration**: Site URL = la dirección final (`https://panacota.com.ar`). En Redirect URLs,
+   esa misma con `/**` al final, y para probar en la compu `http://localhost:4200/**` y `http://localhost:4300/**`.
+   Es a donde vuelve el link de «recuperar contraseña» (`?recuperar=1&code=...`).
 5. **Authentication → Users → Add user**: crear a la dueña con su email y una contraseña provisoria. Copiar su `UUID`.
 6. SQL Editor: darle de alta como dueña (reemplazar el UUID y los datos):
    ```sql
@@ -31,8 +39,7 @@ navegador: precios, totales y permisos se validan en la base.
    values ('UUID-DE-AUTH', 'Claudia', 'claudia', 'dueña@ejemplo.com', 'duena',
            '{"cobrar": true, "anular": true, "verReportes": true, "editarProductos": true}');
    ```
-   Las empleadas después las crea la dueña desde el panel (**Empleadas**), que llama a una función que crea el usuario
-   de Auth y la fila en `usuarios` a la vez (pendiente de implementar junto con la migración de `Tienda`).
+   Las empleadas después las crea la dueña desde el panel (**Empleadas**), que llama a la función `empleadas`.
 7. **Project Settings → API**: copiar `Project URL` y `anon public key`. Son las dos variables del paso 3.
 
 ## 2. Cargar los datos iniciales

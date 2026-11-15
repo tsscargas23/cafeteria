@@ -53,11 +53,11 @@ import { nuevoId, Tienda } from '../core/tienda';
               </label>
               <label class="campo"><span>Mandarla a este email</span><input class="input" type="email" [(ngModel)]="a.copia.email" /></label>
             </div>
-            <p class="aviso-linea info"><lucide-icon [img]="iMail" [size]="16" /><span>En el sistema real la copia llega sola por email con un archivo adjunto. En esta demo se descarga a la compu.</span></p>
+            <p class="aviso-linea info"><lucide-icon [img]="iMail" [size]="16" /><span>@if (tienda.real) { Por ahora la copia se descarga desde acá; el envío automático por email se activa cuando esté el dominio. } @else { En el sistema real la copia llega sola por email con un archivo adjunto. En esta demo se descarga a la compu. }</span></p>
             <p class="ter">Última copia: {{ tienda.estado().ajustes.copia.ultima ? fechaHora(tienda.estado().ajustes.copia.ultima!) : 'nunca' }}</p>
             <div class="fila">
               <button class="btn primario" (click)="copia()"><lucide-icon [img]="iBajar" [size]="18" />Descargar copia ahora</button>
-              <label class="btn"><lucide-icon [img]="iSubir" [size]="18" />Restaurar desde una copia<input type="file" accept=".json,application/json" hidden (change)="restaurar($any($event.target).files?.[0])" /></label>
+              @if (!tienda.real) { <label class="btn"><lucide-icon [img]="iSubir" [size]="18" />Restaurar desde una copia<input type="file" accept=".json,application/json" hidden (change)="restaurar($any($event.target).files?.[0])" /></label> }
               <button class="btn fantasma" (click)="guardar()">Guardar frecuencia</button>
             </div>
             <div class="separador"></div>
@@ -86,6 +86,7 @@ import { nuevoId, Tienda } from '../core/tienda';
           </div>
         </section>
 
+        @if (!tienda.real) {
         <section class="panel">
           <div class="panel-cab"><lucide-icon [img]="iInfo" [size]="20" /><h3>Sobre esta demo</h3></div>
           <div class="panel-cuerpo bloque">
@@ -97,6 +98,7 @@ import { nuevoId, Tienda } from '../core/tienda';
             }
           </div>
         </section>
+        }
       </div>
     </div>
   `,

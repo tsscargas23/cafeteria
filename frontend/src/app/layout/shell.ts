@@ -114,8 +114,8 @@ export class Shell {
   protected readonly iCerrar = PanelLeftClose;
   protected readonly iMenu = Menu;
 
-  salir() {
-    this.tienda.salir();
+  async salir() {
+    await this.tienda.salir();
     this.router.navigateByUrl('/ingresar');
   }
 }

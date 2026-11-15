@@ -2,19 +2,26 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router, Routes } from '@angular/router';
 import { Tienda } from './core/tienda';
 
-const conSesion: CanActivateFn = () => {
+// Las guardas esperan a que se sepa si hay sesión (en el sistema real eso se consulta a Supabase).
+const conSesion: CanActivateFn = async () => {
   const t = inject(Tienda);
-  return t.usuario() ? true : inject(Router).parseUrl('/ingresar');
+  const router = inject(Router);
+  await t.listo;
+  return t.usuario() && !t.recuperando() ? true : router.parseUrl('/ingresar');
 };
 
-const soloDuena: CanActivateFn = () => {
+const soloDuena: CanActivateFn = async () => {
   const t = inject(Tienda);
-  return t.esDuena() ? true : inject(Router).parseUrl('/mesas');
+  const router = inject(Router);
+  await t.listo;
+  return t.esDuena() ? true : router.parseUrl('/mesas');
 };
 
-const inicioSegunRol: CanActivateFn = () => {
+const inicioSegunRol: CanActivateFn = async () => {
   const t = inject(Tienda);
-  return inject(Router).parseUrl(t.esDuena() ? '/inicio' : '/mesas');
+  const router = inject(Router);
+  await t.listo;
+  return router.parseUrl(t.esDuena() ? '/inicio' : '/mesas');
 };
 
 export const routes: Routes = [

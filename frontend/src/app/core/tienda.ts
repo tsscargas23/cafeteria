@@ -1,16 +1,20 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { Avisos } from './avisos';
 import { estadoInicial } from './datos-demo';
 import {
   Ajustes, Billetes, CartaConfig, Cuenta, Estado, FormaMesa, Insumo, ItemCuenta, LineaVenta, MedioPago, ModoCobro, Producto,
   Proveedor, Turno, TurnoDef, Usuario, Venta,
 } from './modelos';
 import { aplicarAumento, consumo, FilaImportada, nombreItem, pendienteCuenta } from './reglas';
+import { estadoVacio, Remoto, traducir } from './remoto';
+import { Supabase } from './supabase';
 
 const CLAVE = 'cafe-demo-v1';
 const CLAVE_SESION = 'cafe-demo-sesion';
 
-export function nuevoId(prefijo: string): string {
-  return `${prefijo}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+/** Identificador único. Es un UUID para que sirva igual en la demo y en la base real. */
+export function nuevoId(_prefijo = ''): string {
+  return crypto.randomUUID();
 }
 
 function leer<T>(clave: string): T | null {
@@ -43,15 +47,28 @@ export interface PagoNuevo {
 }
 
 /**
- * Estado de la demo en el navegador. En el sistema real esta clase se reemplaza por una que habla con
- * Supabase; las pantallas no cambian.
+ * Estado que usan todas las pantallas.
+ * - Demo (sin credenciales de Supabase): vive en el navegador (localStorage) con datos de ejemplo.
+ * - Sistema real: se carga de Supabase al entrar y cada cambio se guarda solo (ver remoto.ts). Las ventas y las
+ *   anulaciones pasan por funciones de la base; las cuentas de empleadas, por la función "empleadas".
  */
 @Injectable({ providedIn: 'root' })
 export class Tienda {
-  private readonly _estado = signal<Estado>(migrar(leer<Estado>(CLAVE)) ?? estadoInicial());
+  private readonly sb = inject(Supabase).cliente;
+  private readonly avisos = inject(Avisos);
+  /** true = sistema real conectado a Supabase. */
+  readonly real = this.sb !== null;
+  private readonly remoto = this.sb ? new Remoto(this.sb, (m) => this.errorRemoto(m)) : null;
+
+  private readonly _estado = signal<Estado>(this.real ? estadoVacio() : (migrar(leer<Estado>(CLAVE)) ?? estadoInicial()));
   readonly estado = this._estado.asReadonly();
 
-  private readonly _usuarioId = signal<string | null>(leer<string>(CLAVE_SESION));
+  private readonly _usuarioId = signal<string | null>(this.real ? null : leer<string>(CLAVE_SESION));
+  /** Se resuelve cuando ya se sabe si hay sesión y, si la hay, los datos están cargados. */
+  readonly listo: Promise<void>;
+  readonly cargando = signal(this.real);
+  /** Al volver desde el link de "recuperar contraseña": hay que pedir la contraseña nueva. */
+  readonly recuperando = signal(false);
   readonly usuario = computed(() => this._estado().usuarios.find((u) => u.id === this._usuarioId() && u.activo) ?? null);
   readonly esDuena = computed(() => this.usuario()?.rol === 'duena');
 
@@ -60,33 +77,147 @@ export class Tienda {
 
   private guardado: ReturnType<typeof setTimeout> | null = null;
 
-  /** Aplica un cambio al estado y lo guarda en el navegador. */
+  constructor() {
+    this.listo = this.real ? this.iniciarReal() : Promise.resolve();
+  }
+
+  /** Aplica un cambio al estado y lo guarda (en el navegador en la demo, en Supabase en el sistema real). */
   private mutar(fn: (e: Estado) => void) {
     const e = this._estado();
     fn(e);
     this._estado.set({ ...e });
+    if (this.remoto) {
+      this.remoto.sincronizar(this._estado());
+      return;
+    }
     if (this.guardado) clearTimeout(this.guardado);
     this.guardado = setTimeout(() => escribir(CLAVE, this._estado()), 300);
   }
 
+  private errorRemoto(mensaje: string) {
+    this.avisos.mostrar(`${traducir(mensaje)} Se recargaron los datos.`, 'error');
+    void this.recargar();
+  }
+
+  // ---------- Sistema real: sesión y datos ----------
+
+  private async iniciarReal() {
+    const sb = this.sb!;
+    // El link de "recuperar contraseña" vuelve con ?recuperar=1&code=...: hay que pedir la contraseña nueva.
+    const params = new URLSearchParams(location.search);
+    if (params.has('recuperar')) this.recuperando.set(true);
+    sb.auth.onAuthStateChange((evento) => {
+      if (evento === 'PASSWORD_RECOVERY') this.recuperando.set(true);
+      if (evento === 'SIGNED_OUT') {
+        this.remoto!.dejarDeEscuchar();
+        this._usuarioId.set(null);
+        this._estado.set(estadoVacio());
+      }
+    });
+    try {
+      const { data } = await sb.auth.getSession();
+      if (params.has('code') || params.has('recuperar')) history.replaceState(null, '', location.pathname + location.hash);
+      if (data.session) await this.entrarCon(data.session.user.id);
+    } catch {
+      this.avisos.mostrar('No se pudo conectar con el sistema. Revisá internet y recargá la página.', 'error');
+    } finally {
+      this.cargando.set(false);
+    }
+  }
+
+  private async entrarCon(id: string) {
+    this.cargando.set(true);
+    try {
+      this._estado.set(await this.remoto!.cargar());
+      this._usuarioId.set(id);
+      this.remoto!.escuchar((tabla, fila, borrada) => {
+        const e = this._estado();
+        if (this.remoto!.aplicarCambio(e, tabla, fila, borrada)) this._estado.set({ ...e });
+      });
+    } finally {
+      this.cargando.set(false);
+    }
+  }
+
+  /** Vuelve a leer todo de la base (después de un error o al pedirlo). */
+  async recargar() {
+    if (!this.remoto || !this._usuarioId()) return;
+    try {
+      this._estado.set(await this.remoto.cargar());
+    } catch {
+      /* el aviso ya se mostró */
+    }
+  }
+
   // ---------- Sesión ----------
 
-  ingresar(usuario: string, contrasena: string): Usuario | null {
-    const u = this._estado().usuarios.find((x) => x.usuario.toLowerCase() === usuario.trim().toLowerCase() && x.contrasena === contrasena && x.activo);
-    if (u) this.fijarSesion(u.id);
-    return u ?? null;
+  /** Entra con usuario (o email) y contraseña. Devuelve la persona, o un mensaje de error. */
+  async ingresar(usuario: string, contrasena: string): Promise<Usuario | string> {
+    if (!this.sb) {
+      const u = this._estado().usuarios.find((x) => x.usuario.toLowerCase() === usuario.trim().toLowerCase() && x.contrasena === contrasena && x.activo);
+      if (!u) return 'El usuario o la contraseña no coinciden. Revisalos y probá de nuevo.';
+      this.fijarSesion(u.id);
+      return u;
+    }
+    const email = await this.emailDe(usuario);
+    if (!email) return 'El usuario o la contraseña no coinciden. Revisalos y probá de nuevo.';
+    const { data, error } = await this.sb.auth.signInWithPassword({ email, password: contrasena });
+    if (error || !data.user) {
+      if (/rate|too many/i.test(error?.message ?? '')) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.';
+      return 'El usuario o la contraseña no coinciden. Revisalos y probá de nuevo.';
+    }
+    try {
+      await this.entrarCon(data.user.id);
+    } catch {
+      await this.sb.auth.signOut();
+      return 'Entraste, pero no se pudieron cargar los datos. Revisá internet y probá de nuevo.';
+    }
+    const u = this.usuario();
+    if (!u) {
+      await this.sb.auth.signOut();
+      return 'Esta cuenta no está habilitada en el sistema. Hablá con la dueña.';
+    }
+    return u;
+  }
+
+  private async emailDe(usuarioOEmail: string): Promise<string | null> {
+    const q = usuarioOEmail.trim();
+    if (q.includes('@')) return q.toLowerCase();
+    const { data } = await this.sb!.rpc('email_para_ingresar', { p_usuario: q });
+    return (data as string | null) ?? null;
   }
 
   /**
-   * Recuperar la contraseña. En el sistema real, Supabase manda un email con un link para elegir una nueva;
-   * en la demo solo se confirma si el usuario o el email existen.
+   * Recuperar la contraseña: Supabase manda un email con un link para elegir una nueva.
+   * En la demo no se manda nada. Devuelve el email (oculto en pantalla) o null.
    */
-  pedirRecuperacion(usuarioOEmail: string): Usuario | null {
-    const q = usuarioOEmail.trim().toLowerCase();
-    return this._estado().usuarios.find((x) => x.activo && (x.usuario.toLowerCase() === q || x.email.toLowerCase() === q)) ?? null;
+  async pedirRecuperacion(usuarioOEmail: string): Promise<string | null> {
+    if (!this.sb) {
+      const q = usuarioOEmail.trim().toLowerCase();
+      return this._estado().usuarios.find((x) => x.activo && (x.usuario.toLowerCase() === q || x.email.toLowerCase() === q))?.email ?? null;
+    }
+    const email = await this.emailDe(usuarioOEmail);
+    if (!email) return null;
+    // Vuelve a la misma página; Supabase agrega "?code=..." y la app pide la contraseña nueva.
+    await this.sb.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}${location.pathname}?recuperar=1` });
+    return email;
   }
 
-  salir() {
+  /** Guarda la contraseña nueva después de entrar por el link del email. */
+  async nuevaContrasena(contrasena: string): Promise<string | null> {
+    if (!this.sb) return null;
+    const { error, data } = await this.sb.auth.updateUser({ password: contrasena });
+    if (error) return /same|different/i.test(error.message) ? 'Tiene que ser distinta a la anterior.' : 'No se pudo guardar. El link puede haber vencido: pedí otro.';
+    this.recuperando.set(false);
+    if (data.user) await this.entrarCon(data.user.id);
+    return null;
+  }
+
+  async salir() {
+    if (this.sb) {
+      await this.sb.auth.signOut();
+      return;
+    }
     this.fijarSesion(null);
   }
 
@@ -218,7 +349,7 @@ export class Tienda {
           origen: 'mesa', mesa: mesa?.nombre ?? null, personas: c.personas.length, usuarioId: this.usuario()?.id ?? c.atiendeId,
           lineas: agruparLineas(c.items, e.productos),
           pagos: c.pagos.map((p) => ({ medio: p.medio, monto: p.monto, quien: p.quien })),
-        });
+        }, cuentaId);
         e.cuentas = e.cuentas.filter((x) => x.id !== cuentaId);
       }
     });
@@ -235,15 +366,32 @@ export class Tienda {
     return venta;
   }
 
-  private registrarVenta(e: Estado, d: Pick<Venta, 'origen' | 'mesa' | 'personas' | 'usuarioId' | 'lineas' | 'pagos'>): Venta {
+  private registrarVenta(e: Estado, d: Pick<Venta, 'origen' | 'mesa' | 'personas' | 'usuarioId' | 'lineas' | 'pagos'>, cuentaId: string | null = null): Venta {
     const turno = e.turnos.find((t) => !t.cerradoEn);
     const venta: Venta = {
       ...d, id: nuevoId('v'), numero: e.proximoNumeroVenta++, fecha: Date.now(), turnoId: turno?.id ?? '',
       total: d.lineas.reduce((s, l) => s + l.precio * l.cantidad, 0), anulada: null,
     };
     e.ventas.push(venta);
-    this.moverStock(e, d.lineas, -1, `Venta #${venta.numero}`);
+    if (this.remoto) void this.ventaRemota(venta, cuentaId);
+    else this.moverStock(e, d.lineas, -1, `Venta #${venta.numero}`);
     return venta;
+  }
+
+  /** Manda la venta a la base. El número definitivo y el stock los pone la base; si falla, se avisa y se recarga. */
+  private async ventaRemota(venta: Venta, cuentaId: string | null) {
+    try {
+      const numero = await this.remoto!.registrarVenta(venta, cuentaId);
+      const stock = await this.remoto!.recargarStock();
+      const e = this._estado();
+      const v = e.ventas.find((x) => x.id === venta.id);
+      if (v) v.numero = numero;
+      e.insumos = stock.insumos;
+      e.movimientos = stock.movimientos;
+      this._estado.set({ ...e });
+    } catch (err) {
+      this.errorRemoto(err instanceof Error ? `La venta no se guardó: ${err.message}` : 'La venta no se guardó.');
+    }
   }
 
   private moverStock(e: Estado, lineas: LineaVenta[], signo: 1 | -1, detalle: string) {
@@ -256,12 +404,31 @@ export class Tienda {
   }
 
   anularVenta(ventaId: string, motivo: string) {
+    if (this.remoto) {
+      void this.anularRemota(ventaId, motivo);
+      return;
+    }
     this.mutar((e) => {
       const v = e.ventas.find((x) => x.id === ventaId);
       if (!v || v.anulada) return;
       v.anulada = { motivo, porId: this.usuario()?.id ?? '', fecha: Date.now() };
       this.moverStock(e, v.lineas, 1, `Anulación venta #${v.numero}`);
     });
+  }
+
+  private async anularRemota(ventaId: string, motivo: string) {
+    try {
+      await this.remoto!.anularVenta(ventaId, motivo);
+      const stock = await this.remoto!.recargarStock();
+      const e = this._estado();
+      const v = e.ventas.find((x) => x.id === ventaId);
+      if (v) v.anulada = { motivo, porId: this.usuario()?.id ?? '', fecha: Date.now() };
+      e.insumos = stock.insumos;
+      e.movimientos = stock.movimientos;
+      this._estado.set({ ...e });
+    } catch (err) {
+      this.errorRemoto(err instanceof Error ? err.message : 'No se pudo anular.');
+    }
   }
 
   // ---------- Plano del salón ----------
@@ -490,12 +657,37 @@ export class Tienda {
 
   // ---------- Empleadas ----------
 
-  guardarUsuario(u: Usuario) {
-    this.mutar((e) => {
-      const k = e.usuarios.findIndex((x) => x.id === u.id);
-      if (k >= 0) e.usuarios[k] = structuredClone(u);
-      else e.usuarios.push(structuredClone(u));
-    });
+  /**
+   * Crea o actualiza una persona. En el sistema real, las cuentas nuevas, las contraseñas, los emails y las bajas
+   * pasan por la función "empleadas" (necesitan permisos que el navegador no tiene). Devuelve un error o null.
+   */
+  async guardarUsuario(u: Usuario): Promise<string | null> {
+    if (!this.remoto) {
+      this.mutar((e) => {
+        const k = e.usuarios.findIndex((x) => x.id === u.id);
+        if (k >= 0) e.usuarios[k] = structuredClone(u);
+        else e.usuarios.push(structuredClone(u));
+      });
+      return null;
+    }
+    const anterior = this._estado().usuarios.find((x) => x.id === u.id);
+    try {
+      if (!anterior) {
+        await this.remoto.empleadas({ accion: 'crear', nombre: u.nombre, usuario: u.usuario, email: u.email, contrasena: u.contrasena, telefono: u.telefono, permisos: u.permisos });
+        await this.recargar();
+        return null;
+      }
+      if (u.contrasena) await this.remoto.empleadas({ accion: 'contrasena', id: u.id, contrasena: u.contrasena });
+      if (u.email !== anterior.email) await this.remoto.empleadas({ accion: 'email', id: u.id, email: u.email });
+      if (u.activo !== anterior.activo) await this.remoto.empleadas({ accion: u.activo ? 'activar' : 'desactivar', id: u.id });
+      this.mutar((e) => {
+        const k = e.usuarios.findIndex((x) => x.id === u.id);
+        if (k >= 0) e.usuarios[k] = { ...structuredClone(u), contrasena: '' };
+      });
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'No se pudo guardar.';
+    }
   }
 
   usuarioLibre(nombre: string, exceptoId: string): boolean {
@@ -524,8 +716,14 @@ export class Tienda {
     return JSON.stringify({ tipo: 'copia-cafeteria', creada: new Date().toISOString(), estado: this._estado() });
   }
 
+  /** Insumo que se usa para calcular los kilos de café (el que se llama "café" y se mide en kilos). */
+  insumoCafe(): Insumo | null {
+    return this._estado().insumos.find((i) => i.unidad === 'kg' && /caf[eé]/i.test(i.nombre)) ?? null;
+  }
+
   /** Restaura una copia. Devuelve un mensaje de error o null si salió bien. */
   restaurar(texto: string): string | null {
+    if (this.real) return 'En el sistema real la restauración la hace el técnico desde la base de datos, para no pisar datos por error.';
     try {
       const datos = JSON.parse(texto) as { tipo?: string; estado?: Estado };
       if (datos.tipo !== 'copia-cafeteria' || !datos.estado?.ventas) return 'Ese archivo no es una copia de este sistema.';
@@ -539,6 +737,7 @@ export class Tienda {
   }
 
   reiniciarDemo() {
+    if (this.real) return;
     const e = estadoInicial();
     this._estado.set(e);
     escribir(CLAVE, e);

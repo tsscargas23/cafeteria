@@ -57,6 +57,15 @@ import { Tienda } from '../core/tienda';
 
     <section class="acceso">
       <div class="caja">
+        @if (tienda.recuperando()) {
+          <div><h1>Elegí una contraseña nueva</h1><p class="sub">Entraste con el link del email. Escribí tu contraseña nueva dos veces.</p></div>
+          <form (ngSubmit)="guardarNueva()">
+            <label class="campo"><span>Contraseña nueva</span><input class="input" name="n1" [(ngModel)]="nueva1" type="password" autocomplete="new-password" /><small>Al menos 8 caracteres.</small></label>
+            <label class="campo"><span>Repetila</span><input class="input" name="n2" [(ngModel)]="nueva2" type="password" autocomplete="new-password" /></label>
+            @if (error()) { <p class="aviso-linea atencion" role="alert">{{ error() }}</p> }
+            <button class="btn primario grande" type="submit" [disabled]="enviando()">Guardar y entrar</button>
+          </form>
+        } @else {
         @switch (vista()) {
           @case ('entrar') {
             <div><h1>Hola, ¿quién entra?</h1><p class="sub">Entrá con tu usuario y tu contraseña.</p></div>
@@ -69,7 +78,7 @@ import { Tienda } from '../core/tienda';
                 </span>
               </label>
               @if (error()) { <p class="aviso-linea atencion" role="alert">{{ error() }}</p> }
-              <button class="btn primario grande" type="submit"><lucide-icon [img]="iCandado" [size]="18" />Entrar</button>
+              <button class="btn primario grande" type="submit" [disabled]="enviando()"><lucide-icon [img]="iCandado" [size]="18" />{{ enviando() ? 'Entrando…' : 'Entrar' }}</button>
               <button type="button" class="enlace" (click)="vista.set('recuperar'); error.set('')">¿Te olvidaste la contraseña?</button>
             </form>
           }
@@ -78,7 +87,7 @@ import { Tienda } from '../core/tienda';
             <form (ngSubmit)="recuperar()">
               <label class="campo"><span>Usuario o email</span><input class="input" name="quien" [(ngModel)]="quien" autocomplete="username" autofocus /></label>
               @if (error()) { <p class="aviso-linea atencion" role="alert">{{ error() }}</p> }
-              <button class="btn primario grande" type="submit"><lucide-icon [img]="iMail" [size]="18" />Mandar el link</button>
+              <button class="btn primario grande" type="submit" [disabled]="enviando()"><lucide-icon [img]="iMail" [size]="18" />Mandar el link</button>
               <button type="button" class="enlace" (click)="vista.set('entrar'); error.set('')">Volver</button>
             </form>
           }
@@ -87,12 +96,15 @@ import { Tienda } from '../core/tienda';
               <lucide-icon [img]="iOk" [size]="44" class="ok-grande" />
               <h1>Revisá tu email</h1>
               <p class="sub">Si <b>{{ quien }}</b> está registrado, en unos minutos te llega un email a <b>{{ emailOculto() }}</b> con un link para elegir una contraseña nueva. El link vence en una hora.</p>
-              <p class="aviso-linea info" style="text-align:left">En esta demo no se manda ningún email. En el sistema real el envío lo hace el servicio de usuarios, sin pasar por ningún otro servicio externo. Si no te llega, la dueña puede cambiarte la contraseña desde «Empleadas».</p>
+              @if (!tienda.real) { <p class="aviso-linea info" style="text-align:left">En esta demo no se manda ningún email. En el sistema real lo manda el servicio de usuarios.</p> }
+              <p class="ter">Abrí el link desde esta misma computadora o celular. Si no te llega, la dueña puede cambiarte la contraseña desde «Empleadas».</p>
               <button class="btn" (click)="vista.set('entrar')">Volver a entrar</button>
             </div>
           }
         }
+        }
 
+        @if (!tienda.real) {
         <div class="demo">
           <span><b>Demo:</b> dueña <b>claudia</b> / <b>cafe1234</b> · empleada <b>lucia</b> / <b>lucia123</b></span>
           <span class="fila">
@@ -100,6 +112,7 @@ import { Tienda } from '../core/tienda';
             <button class="btn chico" (click)="rapido('lucia', 'lucia123')">Entrar como empleada</button>
           </span>
         </div>
+        }
       </div>
     </section>
   `,
@@ -111,6 +124,9 @@ export class Ingresar {
   protected readonly ver = signal(false);
   protected readonly error = signal('');
   protected readonly emailOculto = signal('');
+  protected readonly enviando = signal(false);
+  protected nueva1 = '';
+  protected nueva2 = '';
   protected readonly nombre = computed(() => this.tienda.estado().ajustes.nombreLocal);
   protected readonly fechaHoy = capitalizar(new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }));
   protected usuario = '';
@@ -122,24 +138,42 @@ export class Ingresar {
   protected readonly iMail = Mail;
   protected readonly iOk = CircleCheck;
 
-  entrar() {
-    const u = this.tienda.ingresar(this.usuario, this.contrasena);
-    if (!u) {
-      this.error.set('El usuario o la contraseña no coinciden. Revisalos y probá de nuevo.');
+  async entrar() {
+    if (this.enviando()) return;
+    this.enviando.set(true);
+    this.error.set('');
+    const r = await this.tienda.ingresar(this.usuario, this.contrasena);
+    this.enviando.set(false);
+    if (typeof r === 'string') {
+      this.error.set(r);
       return;
     }
-    this.router.navigateByUrl(u.rol === 'duena' ? '/inicio' : '/mesas');
+    this.contrasena = '';
+    this.router.navigateByUrl(r.rol === 'duena' ? '/inicio' : '/mesas');
   }
 
-  recuperar() {
+  async recuperar() {
     if (!this.quien.trim()) {
       this.error.set('Escribí tu usuario o tu email.');
       return;
     }
+    this.enviando.set(true);
     // Se muestra lo mismo exista o no el usuario, para no revelar quiénes tienen cuenta.
-    const u = this.tienda.pedirRecuperacion(this.quien);
-    this.emailOculto.set(u?.email ? ocultarEmail(u.email) : 'tu email');
+    const email = await this.tienda.pedirRecuperacion(this.quien).catch(() => null);
+    this.enviando.set(false);
+    this.emailOculto.set(email ? ocultarEmail(email) : 'tu email');
     this.vista.set('enviado');
+  }
+
+  async guardarNueva() {
+    if (this.nueva1.length < 8) return this.error.set('La contraseña necesita al menos 8 caracteres.');
+    if (this.nueva1 !== this.nueva2) return this.error.set('Las dos contraseñas no coinciden.');
+    this.enviando.set(true);
+    const error = await this.tienda.nuevaContrasena(this.nueva1);
+    this.enviando.set(false);
+    if (error) return this.error.set(error);
+    const u = this.tienda.usuario();
+    this.router.navigateByUrl(u?.rol === 'duena' ? '/inicio' : '/mesas');
   }
 
   rapido(usuario: string, contrasena: string) {

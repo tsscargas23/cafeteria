@@ -10,7 +10,7 @@ import { environment } from '../../environments/environment';
 export class Supabase {
   readonly cliente: SupabaseClient | null = environment.demo
     ? null
-    : createClient(environment.supabaseUrl, environment.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true } });
+    : createClient(environment.supabaseUrl, environment.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' } });
 
   get activo() {
     return this.cliente !== null;
