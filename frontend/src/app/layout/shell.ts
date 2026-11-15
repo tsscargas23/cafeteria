@@ -40,7 +40,7 @@ const SECCIONES: Seccion[] = [
           <span class="logo"><lucide-icon [img]="iCafe" [size]="20" /></span>
           <span class="nombre-local">
             <b>{{ tienda.estado().ajustes.nombreLocal }}</b>
-            <small>Demo · datos de ejemplo</small>
+            @if (!tienda.real) { <small>Demo · datos de ejemplo</small> } @else { <small>Panel de gestión</small> }
           </span>
         </div>
         <ul>

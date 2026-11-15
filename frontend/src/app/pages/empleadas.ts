@@ -63,7 +63,7 @@ import { nuevoId, Tienda } from '../core/tienda';
           <div class="separador"></div>
           <h3>Acceso</h3>
           <div class="grilla-2">
-            <label class="campo"><span>Usuario</span><input class="input" [(ngModel)]="form.usuario" autocomplete="off" [class.invalido]="!usuarioOk()" />
+            <label class="campo"><span>Usuario</span><input class="input" [(ngModel)]="form.usuario" (input)="usuarioTocado = true" autocomplete="off" autocapitalize="none" [class.invalido]="!usuarioOk()" />
               @if (!usuarioOk()) { <span class="error">Ese usuario ya existe.</span> }</label>
             <label class="campo"><span>{{ esNueva || !tienda.real ? 'Contraseña' : 'Contraseña nueva (opcional)' }}</span>
               <span class="clave"><input class="input" [(ngModel)]="form.contrasena" [type]="ver() ? 'text' : 'password'" autocomplete="new-password" [placeholder]="esNueva || !tienda.real ? '' : 'Dejala vacía para no cambiarla'" />
@@ -107,6 +107,8 @@ export class Empleadas {
   protected readonly guardando = signal(false);
   protected form: Usuario = this.vacia();
   protected esNueva = false;
+  /** Si la dueña escribió el usuario a mano, ya no se sugiere a partir del nombre. */
+  protected usuarioTocado = false;
   protected readonly usuarios = computed(() => [...this.tienda.estado().usuarios].sort((a, b) => Number(b.rol === 'duena') - Number(a.rol === 'duena') || Number(b.activo) - Number(a.activo)));
   protected readonly iniciales = iniciales;
   protected readonly iMas = Plus;
@@ -131,6 +133,7 @@ export class Empleadas {
   }
 
   nueva() {
+    this.usuarioTocado = false;
     this.form = this.vacia();
     this.esNueva = true;
     this.error.set('');
@@ -145,7 +148,7 @@ export class Empleadas {
   }
 
   sugerirUsuario() {
-    if (this.esNueva) this.form.usuario = this.form.nombre.trim().split(/\s+/)[0]?.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '') ?? '';
+    if (this.esNueva && !this.usuarioTocado) this.form.usuario = this.form.nombre.trim().split(/\s+/)[0]?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9._-]/g, '') ?? '';
   }
 
   async guardar() {

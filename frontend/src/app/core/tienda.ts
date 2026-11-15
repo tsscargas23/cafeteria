@@ -35,6 +35,13 @@ function escribir(clave: string, valor: unknown) {
   }
 }
 
+export interface ResultadoCobro {
+  /** La venta, si el pago cerró la cuenta (o fue de mostrador). */
+  venta: Venta | null;
+  /** Mensaje si la base rechazó la venta. */
+  error: string | null;
+}
+
 export interface PagoNuevo {
   monto: number;
   medio: MedioPago;
@@ -104,12 +111,16 @@ export class Tienda {
   private async iniciarReal() {
     const sb = this.sb!;
     // El link de "recuperar contraseña" vuelve con ?recuperar=1&code=...: hay que pedir la contraseña nueva.
+    // Datos de la demo que pudieron quedar en este navegador: en el sistema real no se usan.
+    escribir(CLAVE, null);
+    escribir(CLAVE_SESION, null);
     const params = new URLSearchParams(location.search);
     if (params.has('recuperar')) this.recuperando.set(true);
     sb.auth.onAuthStateChange((evento) => {
       if (evento === 'PASSWORD_RECOVERY') this.recuperando.set(true);
       if (evento === 'SIGNED_OUT') {
         this.remoto!.dejarDeEscuchar();
+        if (this.respaldo) clearInterval(this.respaldo);
         this._usuarioId.set(null);
         this._estado.set(estadoVacio());
       }
@@ -134,8 +145,34 @@ export class Tienda {
         const e = this._estado();
         if (this.remoto!.aplicarCambio(e, tabla, fila, borrada)) this._estado.set({ ...e });
       });
+      // Respaldo: si el tiempo real se corta (wifi del local), las mesas y la caja se refrescan cada 15 segundos.
+      if (this.respaldo) clearInterval(this.respaldo);
+      this.respaldo = setInterval(() => void this.refrescarSiHaceFalta(), 15_000);
     } finally {
       this.cargando.set(false);
+    }
+  }
+
+  private respaldo: ReturnType<typeof setInterval> | null = null;
+
+  private async refrescarSiHaceFalta() {
+    if (!this.remoto || this.remoto.enVivo || document.visibilityState !== 'visible' || !this._usuarioId()) return;
+    try {
+      const r = await this.remoto.refrescarSala();
+      if (!r) return;
+      const e = this._estado();
+      e.cuentas = r.cuentas;
+      const viejos = e.turnos.filter((t) => !r.turnos.some((n) => n.id === t.id));
+      e.turnos = [...viejos, ...r.turnos].sort((a, b) => a.abiertoEn - b.abiertoEn);
+      for (const v of r.ventasNuevas) {
+        const k = e.ventas.findIndex((x) => x.id === v.id);
+        if (k >= 0) e.ventas[k] = v;
+        else e.ventas.push(v);
+        e.proximoNumeroVenta = Math.max(e.proximoNumeroVenta, v.numero + 1);
+      }
+      this._estado.set({ ...e });
+    } catch {
+      /* sin conexión: se intenta de nuevo en el próximo ciclo */
     }
   }
 
@@ -328,71 +365,95 @@ export class Tienda {
     this.mutar((e) => (e.cuentas = e.cuentas.filter((c) => c.id !== cuentaId || c.items.length > 0 || c.pagos.length > 0)));
   }
 
-  /** Registra un pago. Si con eso no falta nada, cierra la mesa y devuelve la venta. */
-  cobrar(cuentaId: string, pago: PagoNuevo): Venta | null {
-    let venta: Venta | null = null;
-    this.mutar((e) => {
-      const c = e.cuentas.find((x) => x.id === cuentaId);
-      if (!c || pago.monto <= 0) return;
-      for (const sel of pago.items) {
-        const i = c.items.find((x) => x.id === sel.itemId);
-        if (!i || i.pagado) continue;
-        if (sel.cantidad < i.cantidad) {
-          i.cantidad -= sel.cantidad;
-          c.items.push({ ...i, id: nuevoId('it'), cantidad: sel.cantidad, pagado: true });
-        } else {
-          i.pagado = true;
-        }
+  /**
+   * Registra un pago. Si con eso no falta nada, cierra la mesa y devuelve la venta.
+   * En el sistema real, el pago que cierra la mesa se confirma primero con la base: si la base lo rechaza, la mesa
+   * queda exactamente como estaba y se devuelve el error (nunca se pierde un pedido).
+   */
+  async cobrar(cuentaId: string, pago: PagoNuevo): Promise<ResultadoCobro> {
+    const e = this._estado();
+    const original = e.cuentas.find((x) => x.id === cuentaId);
+    if (!original || pago.monto <= 0) return { venta: null, error: null };
+    const c = structuredClone(original);
+    for (const sel of pago.items) {
+      const i = c.items.find((x) => x.id === sel.itemId);
+      if (!i || i.pagado) continue;
+      if (sel.cantidad < i.cantidad) {
+        i.cantidad -= sel.cantidad;
+        c.items.push({ ...i, id: nuevoId('it'), cantidad: sel.cantidad, pagado: true });
+      } else {
+        i.pagado = true;
       }
-      c.pagos.push({ id: nuevoId('pg'), monto: pago.monto, medio: pago.medio, modo: pago.modo, personaId: pago.personaId, quien: pago.quien, cubreCompartido: pago.cubreCompartido, hora: Date.now() });
-      if (pendienteCuenta(c) === 0) {
-        const mesa = e.mesas.find((m) => m.id === c.mesaId);
-        venta = this.registrarVenta(e, {
-          origen: 'mesa', mesa: mesa?.nombre ?? null, personas: c.personas.length, usuarioId: this.usuario()?.id ?? c.atiendeId,
-          lineas: agruparLineas(c.items, e.productos),
-          pagos: c.pagos.map((p) => ({ medio: p.medio, monto: p.monto, quien: p.quien })),
-        }, cuentaId);
-        e.cuentas = e.cuentas.filter((x) => x.id !== cuentaId);
-      }
+    }
+    c.pagos.push({ id: nuevoId('pg'), monto: pago.monto, medio: pago.medio, modo: pago.modo, personaId: pago.personaId, quien: pago.quien, cubreCompartido: pago.cubreCompartido, hora: Date.now() });
+
+    // Pago parcial: la mesa sigue abierta con lo que falta.
+    if (pendienteCuenta(c) > 0) {
+      this.mutar((x) => {
+        const k = x.cuentas.findIndex((y) => y.id === cuentaId);
+        if (k >= 0) x.cuentas[k] = c;
+      });
+      return { venta: null, error: null };
+    }
+
+    const mesa = e.mesas.find((m) => m.id === c.mesaId);
+    const venta = this.armarVenta(e, {
+      origen: 'mesa', mesa: mesa?.nombre ?? null, personas: c.personas.length, usuarioId: this.usuario()?.id ?? c.atiendeId,
+      lineas: agruparLineas(c.items, e.productos),
+      pagos: c.pagos.map((p) => ({ medio: p.medio, monto: p.monto, quien: p.quien })),
     });
-    return venta;
+    const error = await this.confirmarVenta(venta, cuentaId);
+    return error ? { venta: null, error } : { venta, error: null };
   }
 
   // ---------- Ventas ----------
 
-  venderMostrador(lineas: LineaVenta[], pagos: { medio: MedioPago; monto: number }[]): Venta | null {
-    let venta: Venta | null = null;
-    this.mutar((e) => {
-      venta = this.registrarVenta(e, { origen: 'mostrador', mesa: null, personas: 1, usuarioId: this.usuario()?.id ?? '', lineas, pagos: pagos.map((p) => ({ ...p, quien: '' })) });
+  /** Venta de mostrador. En el sistema real se confirma con la base antes de darla por cobrada. */
+  async venderMostrador(lineas: LineaVenta[], pagos: { medio: MedioPago; monto: number }[]): Promise<ResultadoCobro> {
+    const venta = this.armarVenta(this._estado(), {
+      origen: 'mostrador', mesa: null, personas: 1, usuarioId: this.usuario()?.id ?? '', lineas, pagos: pagos.map((p) => ({ ...p, quien: '' })),
     });
-    return venta;
+    const error = await this.confirmarVenta(venta, null);
+    return error ? { venta: null, error } : { venta, error: null };
   }
 
-  private registrarVenta(e: Estado, d: Pick<Venta, 'origen' | 'mesa' | 'personas' | 'usuarioId' | 'lineas' | 'pagos'>, cuentaId: string | null = null): Venta {
+  private armarVenta(e: Estado, d: Pick<Venta, 'origen' | 'mesa' | 'personas' | 'usuarioId' | 'lineas' | 'pagos'>): Venta {
     const turno = e.turnos.find((t) => !t.cerradoEn);
-    const venta: Venta = {
-      ...d, id: nuevoId('v'), numero: e.proximoNumeroVenta++, fecha: Date.now(), turnoId: turno?.id ?? '',
+    return {
+      ...d, id: nuevoId('v'), numero: e.proximoNumeroVenta, fecha: Date.now(), turnoId: turno?.id ?? '',
       total: d.lineas.reduce((s, l) => s + l.precio * l.cantidad, 0), anulada: null,
     };
-    e.ventas.push(venta);
-    if (this.remoto) void this.ventaRemota(venta, cuentaId);
-    else this.moverStock(e, d.lineas, -1, `Venta #${venta.numero}`);
-    return venta;
   }
 
-  /** Manda la venta a la base. El número definitivo y el stock los pone la base; si falla, se avisa y se recarga. */
-  private async ventaRemota(venta: Venta, cuentaId: string | null) {
+  /** Guarda la venta (y libera la mesa si corresponde). Devuelve un mensaje de error o null. */
+  private async confirmarVenta(venta: Venta, cuentaId: string | null): Promise<string | null> {
+    if (this.remoto) {
+      try {
+        venta.numero = await this.remoto.registrarVenta(venta, cuentaId);
+      } catch (err) {
+        return err instanceof Error ? err.message : 'No se pudo guardar la venta.';
+      }
+    }
+    this.mutar((e) => {
+      e.ventas.push(venta);
+      e.proximoNumeroVenta = Math.max(e.proximoNumeroVenta, venta.numero + 1);
+      if (cuentaId) e.cuentas = e.cuentas.filter((x) => x.id !== cuentaId);
+      if (!this.remoto) this.moverStock(e, venta.lineas, -1, `Venta #${venta.numero}`);
+    });
+    if (this.remoto) void this.refrescarStock();
+    return null;
+  }
+
+  /** Después de una venta o anulación, el stock lo cambió la base: se vuelve a leer. */
+  private async refrescarStock() {
     try {
-      const numero = await this.remoto!.registrarVenta(venta, cuentaId);
       const stock = await this.remoto!.recargarStock();
       const e = this._estado();
-      const v = e.ventas.find((x) => x.id === venta.id);
-      if (v) v.numero = numero;
       e.insumos = stock.insumos;
       e.movimientos = stock.movimientos;
       this._estado.set({ ...e });
-    } catch (err) {
-      this.errorRemoto(err instanceof Error ? `La venta no se guardó: ${err.message}` : 'La venta no se guardó.');
+    } catch {
+      /* se actualiza en la próxima recarga */
     }
   }
 
@@ -421,13 +482,11 @@ export class Tienda {
   private async anularRemota(ventaId: string, motivo: string) {
     try {
       await this.remoto!.anularVenta(ventaId, motivo);
-      const stock = await this.remoto!.recargarStock();
       const e = this._estado();
       const v = e.ventas.find((x) => x.id === ventaId);
       if (v) v.anulada = { motivo, porId: this.usuario()?.id ?? '', fecha: Date.now() };
-      e.insumos = stock.insumos;
-      e.movimientos = stock.movimientos;
       this._estado.set({ ...e });
+      void this.refrescarStock();
     } catch (err) {
       this.errorRemoto(err instanceof Error ? err.message : 'No se pudo anular.');
     }

@@ -99,8 +99,8 @@ import { Impresion } from '../shared/ticket';
               <div class="campo"><span>Vuelto</span><span class="vuelto">{{ plata(vuelto(recibido || 0, total())) }}</span></div>
             </div>
           }
-          <button class="btn primario grande bloque" [disabled]="!lineas().length || !tienda.turnoAbierto() || (medio() === 'efectivo' && !!recibido && recibido < total())" (click)="cobrar()">
-            <lucide-icon [img]="iCheck" [size]="20" />Cobrar {{ plata(total()) }}
+          <button class="btn primario grande bloque" [disabled]="cobrando() || !lineas().length || !tienda.turnoAbierto() || (medio() === 'efectivo' && !!recibido && recibido < total())" (click)="cobrar()">
+            <lucide-icon [img]="iCheck" [size]="20" />{{ cobrando() ? 'Cobrando…' : 'Cobrar ' + plata(total()) }}
           </button>
         </div>
       </aside>
@@ -116,6 +116,7 @@ export class Mostrador {
   protected readonly lineas = signal<LineaVenta[]>([]);
   protected readonly medio = signal<MedioPago>('efectivo');
   protected recibido: number | null = null;
+  protected readonly cobrando = signal(false);
 
   protected readonly categorias = computed(() => this.tienda.estado().categorias.filter((c) => this.tienda.productosActivos().some((p) => p.categoria === c)));
   protected readonly productos = computed(() => {
@@ -147,10 +148,16 @@ export class Mostrador {
     this.lineas.update((ls) => ls.map((l, k) => (k === i ? { ...l, cantidad: l.cantidad + delta } : l)).filter((l) => l.cantidad > 0));
   }
 
-  cobrar() {
+  async cobrar() {
+    if (this.cobrando()) return;
     const total = this.total();
-    const venta = this.tienda.venderMostrador(this.lineas(), [{ medio: this.medio(), monto: total }]);
-    if (!venta) return;
+    this.cobrando.set(true);
+    const { venta, error } = await this.tienda.venderMostrador(this.lineas(), [{ medio: this.medio(), monto: total }]);
+    this.cobrando.set(false);
+    if (error || !venta) {
+      this.avisos.mostrar(`No se cobró: ${error ?? 'error desconocido'} La venta sigue cargada.`, 'error');
+      return;
+    }
     const vueltoTexto = this.medio() === 'efectivo' && this.recibido && this.recibido > total ? ` Vuelto ${plata(this.recibido - total)}.` : '';
     this.avisos.mostrar(`Venta #${venta.numero} cobrada: ${plata(total)}.${vueltoTexto}`, 'ok', {
       texto: 'Imprimir ticket',

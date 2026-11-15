@@ -330,19 +330,17 @@ export class Caja {
   /** Sugiere los billetes del último turno, para no cargarlos de nuevo cada día. */
   private ultimoCambio(): Billetes {
     const t = [...this.tienda.estado().turnos].sort((a, b) => b.abiertoEn - a.abiertoEn)[0];
-    return t?.billetesInicial ? { ...t.billetesInicial } : { '10000': 1, '2000': 3, '1000': 3, '500': 2 };
+    return t?.billetesInicial ? { ...t.billetesInicial } : {};
   }
 
   private sugerirDef(): string {
     const ahora = new Date();
     const min = ahora.getHours() * 60 + ahora.getMinutes();
     const defs = this.tienda.estado().turnoDefs;
-    const d = defs.find((x) => {
-      const [h1, m1] = x.desde.split(':').map(Number);
-      const [h2, m2] = x.hasta.split(':').map(Number);
-      return min >= h1 * 60 + m1 - 60 && min < h2 * 60 + m2;
-    });
-    return (d ?? defs[0])?.id ?? '';
+    // El último turno que ya empezó (con una hora de margen antes); si todavía no empezó ninguno, el primero.
+    const aMin = (h: string) => { const [a, b] = h.split(':').map(Number); return a * 60 + b; };
+    const empezados = defs.filter((x) => min >= aMin(x.desde) - 60).sort((a, b) => aMin(b.desde) - aMin(a.desde));
+    return (empezados[0] ?? defs[0])?.id ?? '';
   }
 
   alternarEquipo(id: string) {

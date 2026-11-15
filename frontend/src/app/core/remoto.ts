@@ -302,6 +302,9 @@ export class Remoto {
   // ---------- Ventas (funciones de la base) ----------
 
   async registrarVenta(v: Venta, cuentaId: string | null): Promise<number> {
+    // Primero terminan de guardarse los cambios en camino (por ejemplo, un pago parcial de esta mesa),
+    // así no "reviven" la mesa después de que la base la libere.
+    await this.cola.catch(() => undefined);
     const { data, error } = await this.sb.rpc('registrar_venta', {
       p: { id: v.id, origen: v.origen, mesa: v.mesa, personas: v.personas, lineas: v.lineas, pagos: v.pagos, cuentaId },
     });
@@ -355,7 +358,30 @@ export class Remoto {
         alCambiar(tabla, (borrada ? cambio.old : cambio.new) as Fila, borrada);
       });
     }
-    this.canal.subscribe();
+    this.canal.subscribe((estado) => {
+      this.enVivo = estado === 'SUBSCRIBED';
+      if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT') console.warn('[tiempo real]', estado);
+    });
+  }
+
+  /** true si la suscripción de tiempo real está andando. Si no, la tienda refresca cada tanto. */
+  enVivo = false;
+
+  /** Lee de nuevo las mesas abiertas y la caja (respaldo cuando el tiempo real no está andando). */
+  async refrescarSala(): Promise<{ cuentas: Cuenta[]; turnos: Turno[]; ventasNuevas: Venta[] } | null> {
+    if (this.ocupado) return null;
+    const hace = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    const [cuentas, turnos, ventas] = await Promise.all([
+      this.todas('cuentas'),
+      this.todas('turnos', (q) => q.gte('abierto_en', hace).order('abierto_en')),
+      this.todas('ventas', (q) => q.gte('fecha', new Date(Date.now() - 86_400_000).toISOString()).order('fecha')),
+    ]);
+    if (this.ocupado) return null;
+    const r = { cuentas: cuentas.map(desde.cuenta), turnos: turnos.map(desde.turno), ventasNuevas: ventas.map(desde.venta) };
+    for (const c of r.cuentas) { const f = hacia.cuentas(c); delete f['actualizada_en']; this.guardado.set(`cuentas:${c.id}`, JSON.stringify(f)); }
+    for (const k of [...this.guardado.keys()]) if (k.startsWith('cuentas:') && !r.cuentas.some((c) => `cuentas:${c.id}` === k)) this.guardado.delete(k);
+    for (const t of r.turnos) this.guardado.set(`turnos:${t.id}`, JSON.stringify(hacia.turnos(t)));
+    return r;
   }
 
   dejarDeEscuchar() {

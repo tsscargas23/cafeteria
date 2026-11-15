@@ -308,8 +308,8 @@ type Vista = 'cuenta' | 'agregar' | 'cobrar' | 'mover' | 'cobrada';
               <span class="sec">Falta en la mesa {{ plata(pendiente()) }}</span>
               <span class="grande-total"><small>A cobrar</small>{{ plata(montoACobrar()) }}</span>
             </div>
-            <button class="btn primario grande bloque" [disabled]="!montoACobrar() || (medio() === 'efectivo' && !!recibido && recibido < montoACobrar())" (click)="confirmarCobro()">
-              <lucide-icon [img]="iCheck" [size]="20" />Cobrar {{ plata(montoACobrar()) }}
+            <button class="btn primario grande bloque" [disabled]="cobrando() || !montoACobrar() || (medio() === 'efectivo' && !!recibido && recibido < montoACobrar())" (click)="confirmarCobro()">
+              <lucide-icon [img]="iCheck" [size]="20" />{{ cobrando() ? 'Cobrando…' : 'Cobrar ' + plata(montoACobrar()) }}
             </button>
           </footer>
         }
@@ -367,6 +367,7 @@ export class CuentaPanel {
   protected readonly partes = signal(2);
   protected readonly ultimaVenta = signal<Venta | null>(null);
   protected readonly renombrando = signal<{ id: string; nombre: string } | null>(null);
+  protected readonly cobrando = signal(false);
   protected recibido: number | null = null;
   protected quienPaga = '';
 
@@ -536,7 +537,8 @@ export class CuentaPanel {
     this.seleccion.update((s) => ({ ...s, [i.id]: Math.max(1, Math.min(i.cantidad, (s[i.id] ?? 0) + delta)) }));
   }
 
-  confirmarCobro() {
+  async confirmarCobro() {
+    if (this.cobrando()) return;
     const c = this.cuenta()!;
     const monto = this.montoACobrar();
     const modo = this.modo();
@@ -551,7 +553,13 @@ export class CuentaPanel {
     if (modo === 'partes') personaId = null;
     const quien = personaId ? this.nombrePersona(personaId) : modo === 'partes' ? `Parte ${this.partesCobradas() + 1} de ${this.partes()}` : '';
 
-    const venta = this.tienda.cobrar(c.id, { monto, medio: this.medio(), modo, personaId, quien, cubreCompartido, items });
+    this.cobrando.set(true);
+    const { venta, error } = await this.tienda.cobrar(c.id, { monto, medio: this.medio(), modo, personaId, quien, cubreCompartido, items });
+    this.cobrando.set(false);
+    if (error) {
+      this.avisos.mostrar(`No se cobró: ${error} La mesa quedó como estaba.`, 'error');
+      return;
+    }
     const vuelto = this.medio() === 'efectivo' && this.recibido ? this.recibido - monto : 0;
     if (venta) {
       this.ultimaVenta.set(venta);
