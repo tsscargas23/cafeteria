@@ -57,13 +57,14 @@ import { nuevoId, Tienda } from '../core/tienda';
         <div class="lateral-cuerpo">
           <h3>Perfil</h3>
           <div class="grilla-2">
-            <label class="campo"><span>Nombre</span><input class="input" [(ngModel)]="form.nombre" (ngModelChange)="sugerirUsuario()" /></label>
+            <label class="campo"><span>Nombre</span><input class="input" [(ngModel)]="form.nombre" /></label>
             <label class="campo"><span>Teléfono</span><input class="input" [(ngModel)]="form.telefono" inputmode="tel" /></label>
           </div>
           <div class="separador"></div>
           <h3>Acceso</h3>
           <div class="grilla-2">
-            <label class="campo"><span>Usuario</span><input class="input" [(ngModel)]="form.usuario" (input)="usuarioTocado = true" autocomplete="off" autocapitalize="none" [class.invalido]="!usuarioOk()" />
+            <label class="campo"><span>Usuario</span><input class="input" [(ngModel)]="form.usuario" autocomplete="off" autocapitalize="none" [placeholder]="esNueva ? sugerido() : ''" [class.invalido]="!usuarioOk()" />
+              @if (esNueva && !form.usuario && sugerido()) { <small>Si lo dejás vacío, queda «{{ sugerido() }}».</small> }
               @if (!usuarioOk()) { <span class="error">Ese usuario ya existe.</span> }</label>
             <label class="campo"><span>{{ esNueva || !tienda.real ? 'Contraseña' : 'Contraseña nueva (opcional)' }}</span>
               <span class="clave"><input class="input" [(ngModel)]="form.contrasena" [type]="ver() ? 'text' : 'password'" autocomplete="new-password" [placeholder]="esNueva || !tienda.real ? '' : 'Dejala vacía para no cambiarla'" />
@@ -107,8 +108,6 @@ export class Empleadas {
   protected readonly guardando = signal(false);
   protected form: Usuario = this.vacia();
   protected esNueva = false;
-  /** Si la dueña escribió el usuario a mano, ya no se sugiere a partir del nombre. */
-  protected usuarioTocado = false;
   protected readonly usuarios = computed(() => [...this.tienda.estado().usuarios].sort((a, b) => Number(b.rol === 'duena') - Number(a.rol === 'duena') || Number(b.activo) - Number(a.activo)));
   protected readonly iniciales = iniciales;
   protected readonly iMas = Plus;
@@ -133,7 +132,6 @@ export class Empleadas {
   }
 
   nueva() {
-    this.usuarioTocado = false;
     this.form = this.vacia();
     this.esNueva = true;
     this.error.set('');
@@ -147,12 +145,14 @@ export class Empleadas {
     this.abierto.set(true);
   }
 
-  sugerirUsuario() {
-    if (this.esNueva && !this.usuarioTocado) this.form.usuario = this.form.nombre.trim().split(/\s+/)[0]?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9._-]/g, '') ?? '';
+  /** Usuario propuesto a partir del nombre (primer nombre, sin tildes ni símbolos). Se usa si el campo queda vacío. */
+  sugerido(): string {
+    return this.form.nombre.trim().split(/\s+/)[0]?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9._-]/g, '') ?? '';
   }
 
   async guardar() {
     const f = this.form;
+    if (this.esNueva && !f.usuario.trim()) f.usuario = this.sugerido();
     if (!f.nombre.trim()) return this.error.set('Falta el nombre.');
     if (!/^[a-z0-9._-]{3,30}$/i.test(f.usuario.trim()) || !this.usuarioOk()) return this.error.set('Elegí un usuario de 3 a 30 letras o números, sin espacios, que no esté repetido.');
     const pideClave = this.esNueva || !this.tienda.real;

@@ -133,7 +133,7 @@ type Periodo = 'hoy' | 'ayer' | '7' | 'mes' | 'mesPasado' | '30' | 'otro';
                       <td class="sec">{{ tienda.nombreUsuario(v.usuarioId) }}</td>
                       <td class="sec" style="max-width:260px">{{ resumenLineas(v) }}</td>
                       <td class="sec">{{ textoPagos(v) }}</td>
-                      <td class="num"><b>{{ plata(importeFiltrado(v, filtros())) }}</b></td>
+                      <td class="num"><b>{{ v.anulada ? plata(v.total) : plata(importeFiltrado(v, filtros())) }}</b></td>
                       <td class="sin-tachar">
                         @if (v.anulada) { <span class="etiqueta error" [attr.title]="v.anulada.motivo">Anulada</span> }
                         @else { <button class="btn chico fantasma" (click)="anulando.set(v)"><lucide-icon [img]="iAnular" [size]="14" />Anular</button> }
@@ -225,7 +225,7 @@ export class Reportes {
   protected readonly anuladas = computed(() => this.tienda.estado().ventas.filter((v) => v.anulada && v.fecha >= this.desde() && v.fecha <= this.hasta()).length);
   protected readonly filtraProducto = computed(() => this.productos().length > 0 || this.categorias().length > 0);
   protected readonly hayFiltros = computed(() => [this.productos(), this.categorias(), this.empleadas(), this.turnos(), this.medios(), this.origenes()].some((l) => l.length));
-  protected readonly kilos = computed(() => Math.round(kilosCafe(this.lista(), this.filtros(), this.tienda.estado().productos, this.tienda.insumoCafe()?.id ?? '') * 10) / 10);
+  protected readonly kilos = computed(() => Math.round(kilosCafe(this.lista(), this.filtros(), this.tienda.estado().productos, this.tienda.insumoCafe()?.id ?? '') * 100) / 100);
   protected readonly promedioCafes = computed(() => {
     const abiertos = this.dias().filter((d) => d.ventas > 0).length || 1;
     return Math.round(this.r().cafes / abiertos);
@@ -237,7 +237,13 @@ export class Reportes {
     return [...filas].sort((a, b) => (campo === 'nombre' ? a.nombre.localeCompare(b.nombre) || a.variante.localeCompare(b.variante) : (a[campo] - b[campo])) * dir);
   });
   protected readonly sumaProductos = computed(() => this.filasProducto().reduce((s, f) => s + f.total, 0));
-  protected readonly listaVentas = computed(() => this.lista().slice(0, this.limite()));
+  /** Para la lista: las del filtro más las anuladas del período (se ven tachadas y no suman). */
+  private readonly listaConAnuladas = computed(() => {
+    const f = this.filtros();
+    const anuladas = this.tienda.estado().ventas.filter((v) => v.anulada && v.fecha >= f.desde && v.fecha <= f.hasta);
+    return [...this.lista(), ...anuladas].sort((a, b) => b.fecha - a.fecha);
+  });
+  protected readonly listaVentas = computed(() => this.listaConAnuladas().slice(0, this.limite()));
   protected readonly cafesPorTamano = computed(() => {
     const m = new Map<string, number>();
     for (const v of this.lista()) for (const l of v.lineas) if (l.esCafe) m.set(l.variante, (m.get(l.variante) ?? 0) + l.cantidad);

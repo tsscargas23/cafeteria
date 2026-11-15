@@ -19,9 +19,11 @@ export function num(n: number): string {
   return numero.format(n);
 }
 
+const numero3 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 3 });
+
 export function cantidadConUnidad(n: number, u: Unidad): string {
   if (u === 'u') return `${numero.format(n)} ${Math.abs(n) === 1 ? 'unidad' : 'unidades'}`;
-  return `${numero.format(n)} ${u}`;
+  return `${numero3.format(n)} ${u}`;
 }
 
 export function hora(t: number): string {

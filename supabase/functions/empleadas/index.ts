@@ -74,7 +74,8 @@ Deno.serve(async (req) => {
       await admin.auth.admin.deleteUser(creado.user.id); // que no quede una cuenta a medias
       return respuesta({ error: 'No se pudo guardar la empleada.' }, 400);
     }
-    return respuesta({ id: creado.user.id });
+    // Se devuelve el email tal como lo guardó Supabase, para detectar si lo cambió (por ejemplo, un "+alias").
+    return respuesta({ id: creado.user.id, email: creado.user.email, enviado: email });
   }
 
   const id = String(cuerpo.id ?? '');

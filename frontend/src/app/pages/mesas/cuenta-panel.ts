@@ -299,7 +299,7 @@ type Vista = 'cuenta' | 'agregar' | 'cobrar' | 'mover' | 'cobrada';
               </div>
             }
             @if (medio() === 'transferencia' || medio() === 'mercadopago') {
-              <p class="aviso-linea info"><lucide-icon [img]="iRecibo" [size]="16" />Alias: <b>{{ tienda.estado().ajustes.alias }}</b>. Confirmá que llegó antes de cobrar.</p>
+              @if (tienda.estado().ajustes.alias) { <p class="aviso-linea info"><lucide-icon [img]="iRecibo" [size]="16" />Alias: <b>{{ tienda.estado().ajustes.alias }}</b>. Confirmá que llegó antes de cobrar.</p> } @else { <p class="aviso-linea info"><lucide-icon [img]="iRecibo" [size]="16" />Confirmá que la transferencia llegó antes de cobrar.</p> }
             }
           </div>
 

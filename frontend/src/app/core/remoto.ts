@@ -333,7 +333,7 @@ export class Remoto {
 
   // ---------- Empleadas (función "empleadas") ----------
 
-  async empleadas(cuerpo: Record<string, unknown>): Promise<{ id?: string }> {
+  async empleadas(cuerpo: Record<string, unknown>): Promise<{ id?: string; email?: string; enviado?: string }> {
     const { data, error } = await this.sb.functions.invoke('empleadas', { body: cuerpo });
     if (error) {
       let mensaje = 'No se pudo completar el pedido.';
@@ -343,7 +343,7 @@ export class Remoto {
       } catch { /* sin detalle */ }
       throw new ErrorRemoto(mensaje);
     }
-    return data as { id?: string };
+    return data as { id?: string; email?: string; enviado?: string };
   }
 
   // ---------- Tiempo real ----------

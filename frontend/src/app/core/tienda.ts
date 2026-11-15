@@ -734,7 +734,10 @@ export class Tienda {
     const anterior = this._estado().usuarios.find((x) => x.id === u.id);
     try {
       if (!anterior) {
-        await this.remoto.empleadas({ accion: 'crear', nombre: u.nombre, usuario: u.usuario, email: u.email, contrasena: u.contrasena, telefono: u.telefono, permisos: u.permisos });
+        const r = await this.remoto.empleadas({ accion: 'crear', nombre: u.nombre, usuario: u.usuario, email: u.email, contrasena: u.contrasena, telefono: u.telefono, permisos: u.permisos });
+        if (r.email && r.email !== u.email) {
+          this.avisos.mostrar(`Ojo: se escribió «${u.email}», la función recibió «${r.enviado}» y Supabase guardó «${r.email}».`, 'info');
+        }
         await this.recargar();
         return null;
       }

@@ -181,7 +181,7 @@ import { VentasTurno } from '../shared/ventas-turno';
                     <td>{{ nombreDef(t.defId) }}</td>
                     <td class="num" style="text-align:left">{{ hora(t.abiertoEn) }} a {{ hora(t.cerradoEn!) }}</td>
                     <td>{{ duracion(t.abiertoEn, t.cerradoEn!) }}</td>
-                    <td class="sec">{{ nombresEmpleadas(t.empleadaIds) }}</td>
+                    <td class="sec">{{ nombresEmpleadas(trabajaron(t)) }}</td>
                     <td class="num sec">{{ plata(t.efectivoInicial) }}</td>
                     <td class="num">{{ plata(t.vendido) }}</td>
                     <td>
@@ -202,12 +202,12 @@ import { VentasTurno } from '../shared/ventas-turno';
       <div class="lateral-fondo" (click)="detalle.set(null)"></div>
       <aside class="lateral ancho" role="dialog" aria-label="Detalle del turno">
         <div class="lateral-cab">
-          <div><h2>Turno {{ nombreDef(t.defId) }} · {{ fecha(t.abiertoEn) }}</h2><p class="ter">{{ hora(t.abiertoEn) }} a {{ hora(t.cerradoEn!) }} ({{ duracion(t.abiertoEn, t.cerradoEn!) }}) · {{ nombresEmpleadas(t.empleadaIds) }}</p></div>
+          <div><h2>Turno {{ nombreDef(t.defId) }} · {{ fecha(t.abiertoEn) }}</h2><p class="ter">{{ hora(t.abiertoEn) }} a {{ hora(t.cerradoEn!) }} ({{ duracion(t.abiertoEn, t.cerradoEn!) }}) · {{ nombresEmpleadas(trabajaron(t)) }}</p></div>
           <button class="btn icono fantasma" (click)="detalle.set(null)" aria-label="Cerrar"><lucide-icon [img]="iX" [size]="20" /></button>
         </div>
         <div class="lateral-cuerpo">
           <div class="indicadores">
-            <div class="indicador"><div class="nombre">Vendido</div><div class="valor">{{ plata(t.vendido) }}</div><div class="detalle">{{ t.ventas.length }} ventas</div></div>
+            <div class="indicador"><div class="nombre">Vendido</div><div class="valor">{{ plata(t.vendido) }}</div><div class="detalle">{{ t.cantidad }} ventas</div></div>
             <div class="indicador"><div class="nombre">En efectivo</div><div class="valor">{{ plata(t.medios.efectivo) }}</div></div>
             <div class="indicador"><div class="nombre">Caja al cerrar</div><div class="valor">{{ t.arqueo ? plata(t.arqueo.contado) : '—' }}</div>
               <div class="detalle">@if (t.arqueo) { Debía haber {{ plata(t.arqueo.esperado) }} }</div></div>
@@ -271,8 +271,10 @@ export class Caja {
   protected readonly turnoDetalle = computed(() => {
     const t = this.tienda.estado().turnos.find((x) => x.id === this.detalle());
     if (!t) return null;
-    const ventas = ventasDelTurno(this.tienda.estado().ventas, t.id).sort((a, b) => b.fecha - a.fecha);
-    return { ...t, ventas, vendido: ventas.reduce((s, v) => s + v.total, 0), medios: totalesPorMedio(ventas) };
+    const ventas = ventasDelTurno(this.tienda.estado().ventas, t.id);
+    // En la lista se ven también las anuladas (tachadas); en los totales, no.
+    const todas = this.tienda.estado().ventas.filter((v) => v.turnoId === t.id).sort((a, b) => b.fecha - a.fecha);
+    return { ...t, ventas: todas, cantidad: ventas.length, vendido: ventas.reduce((s, v) => s + v.total, 0), medios: totalesPorMedio(ventas) };
   });
 
   protected readonly billetesCierre = signal<Billetes>({});
@@ -321,6 +323,12 @@ export class Caja {
 
   nombreDef(id: string) {
     return this.defDe(id)?.nombre.toLowerCase() ?? 'turno';
+  }
+
+  /** Las que se anotaron al abrir la caja y, además, quienes cobraron algo en el turno. */
+  trabajaron(t: { id: string; empleadaIds: string[] }): string[] {
+    const cobraron = this.tienda.estado().ventas.filter((v) => v.turnoId === t.id).map((v) => v.usuarioId);
+    return [...new Set([...t.empleadaIds, ...cobraron])].filter(Boolean);
   }
 
   nombresEmpleadas(ids: string[]) {
