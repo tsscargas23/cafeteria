@@ -141,10 +141,20 @@ err = await intenta(`select * from registrar_venta($1)`, [venta([linea(3600)], [
 check(err && /ya se cobró/.test(err), 'segundo cobro de la misma mesa rechazado');
 
 console.log('\n== Cierre de caja: el esperado lo calcula la base');
-await db.exec(`insert into turnos (id, abierto_por_id) values ('${T2}', '${E}') on conflict (id) do update set cerrado_en = now(), cerrado_por_id = '${D}', arqueo = '{"contado":100,"esperado":100,"diferencia":0,"nota":""}'`);
+// Como lo manda la app (remoto.ts): la fila completa por update. Antes iba por upsert y la base lo rechazaba.
+await como(F);
+const fila = (await q(`select * from turnos where id='${T2}'`))[0];
+const movs = [...fila.movimientos, { id: 'm2', fecha: 2, tipo: 'ingreso', monto: 300, motivo: 'otra empleada' }];
+err = await intenta(`update turnos set movimientos = $1 where id = '${T2}'`, [JSON.stringify(movs)]);
+check(err === null, 'otra empleada anota un ingreso en la caja abierta ' + (err ?? ''));
+err = await intenta(`insert into turnos (id, abierto_en, abierto_por_id, cerrado_en, arqueo) values ('${T2}', now(), '${E}', now(), '{}') on conflict (id) do update set cerrado_en = excluded.cerrado_en`);
+check(err !== null, '(el upsert de antes sí falla: por eso la app ahora usa update)');
+await como(E);
+r = await db.query(`update turnos set def_id = null, abierto_en = $1, cerrado_en = now(), abierto_por_id = '${E}', cerrado_por_id = '${D}', empleada_ids = '{}', efectivo_inicial = 5000, billetes_inicial = null, movimientos = $2, arqueo = '{"contado":100,"esperado":100,"diferencia":0,"nota":""}' where id = '${T2}' returning id`, [fila.abierto_en, JSON.stringify(movs)]);
+check(r.rows.length === 1, 'la empleada cierra la caja con la fila completa (como la app)');
 const t2 = (await q(`select * from turnos where id='${T2}'`))[0];
-// 5000 inicial + efectivo (4000 anulada no cuenta, 3000, 3500, 3600) - 700 egreso = 14400
-check(t2.cerrado_en !== null && t2.arqueo.esperado === 14400 && t2.arqueo.diferencia === 100 - 14400, `esperado=${t2.arqueo.esperado} diferencia=${t2.arqueo.diferencia} (lo calcula la base)`);
+// 5000 inicial + efectivo (4000 anulada no cuenta, 3000, 3500, 3600) - 700 egreso + 300 ingreso = 14700
+check(t2.cerrado_en !== null && t2.arqueo.esperado === 14700 && t2.arqueo.diferencia === 100 - 14700, `esperado=${t2.arqueo.esperado} diferencia=${t2.arqueo.diferencia} (lo calcula la base)`);
 check(t2.cerrado_por_id === E, 'quién cerró = la empleada que cerró, no lo que mandó');
 err = await intenta(`select * from anular_venta($1, 'x')`, [v1.id]);
 const vT2 = (await q(`select id from ventas where turno_id='${T2}' and anulada is null limit 1`));

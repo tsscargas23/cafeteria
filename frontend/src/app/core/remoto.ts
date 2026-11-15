@@ -128,6 +128,7 @@ export class Remoto {
   private guardado = new Map<string, string>();
   private cola: Promise<void> = Promise.resolve();
   private pendientes = 0;
+  private errores = 0;
   private canal: ReturnType<SupabaseClient['channel']> | null = null;
 
   constructor(private readonly sb: SupabaseClient, private readonly alError: (mensaje: string) => void) {}
@@ -236,11 +237,18 @@ export class Remoto {
 
   /** Compara el estado con lo último guardado y manda los cambios, en orden y de a uno por vez. */
   sincronizar(e: Estado) {
-    const cambios: { tabla: string; col: Coleccion; altas: string[]; bajas: string[] }[] = [];
+    const cambios: { tabla: string; col: Coleccion; altas: string[]; bajas: string[]; nuevas: Set<string> }[] = [];
     for (const t of TABLAS) {
       const actuales = this.filas(e, t.col);
       const altas: string[] = [];
-      for (const [clave, json] of actuales) if (this.guardado.get(`${t.tabla}:${clave}`) !== json) altas.push(json);
+      // Filas que la base todavía no tiene (para los turnos: insertar en vez de actualizar).
+      const nuevas = new Set<string>();
+      for (const [clave, json] of actuales) {
+        const antes = this.guardado.get(`${t.tabla}:${clave}`);
+        if (antes === json) continue;
+        altas.push(json);
+        if (antes === undefined) nuevas.add(clave);
+      }
       const bajas: string[] = [];
       if (t.borra) {
         for (const k of this.guardado.keys()) {
@@ -249,7 +257,7 @@ export class Remoto {
           if (!actuales.has(clave)) bajas.push(clave);
         }
       }
-      if (altas.length || bajas.length) cambios.push({ tabla: t.tabla, col: t.col, altas, bajas });
+      if (altas.length || bajas.length) cambios.push({ tabla: t.tabla, col: t.col, altas, bajas, nuevas });
       // Se marcan ya como guardados: si falla, se avisa y se recarga desde la base.
       for (const [clave, json] of actuales) this.guardado.set(`${t.tabla}:${clave}`, json);
       for (const clave of bajas) this.guardado.delete(`${t.tabla}:${clave}`);
@@ -258,11 +266,21 @@ export class Remoto {
     this.pendientes++;
     this.cola = this.cola
       .then(() => this.enviar(cambios))
-      .catch((err: unknown) => this.alError(err instanceof Error ? err.message : 'No se pudo guardar el cambio.'))
+      .catch((err: unknown) => {
+        this.errores++;
+        this.alError(err instanceof Error ? err.message : 'No se pudo guardar el cambio.');
+      })
       .finally(() => this.pendientes--);
   }
 
-  private async enviar(cambios: { tabla: string; col: Coleccion; altas: string[]; bajas: string[] }[]) {
+  /** Espera a que se guarde todo lo que está en camino. Devuelve false si la base rechazó algo. */
+  async esperarGuardado(): Promise<boolean> {
+    const antes = this.errores;
+    await this.cola;
+    return this.errores === antes;
+  }
+
+  private async enviar(cambios: { tabla: string; col: Coleccion; altas: string[]; bajas: string[]; nuevas: Set<string> }[]) {
     for (const c of cambios) {
       const filas = c.altas.map((j) => JSON.parse(j) as Fila);
       if (c.col === 'productos') {
@@ -282,6 +300,19 @@ export class Remoto {
         for (const f of filas) {
           const { id, ...resto } = f;
           await this.chequear(this.sb.from('usuarios').update(resto).eq('id', id as string));
+        }
+      } else if (c.col === 'turnos') {
+        // Turnos: abrir es un insert y todo lo demás un update. Con upsert, la base controla también la regla de
+        // "abrir caja" (turno sin cerrar y abierto por quien lo manda) y rechaza cerrar la caja o anotar un movimiento.
+        for (const f of filas) {
+          const { id, ...resto } = f;
+          if (c.nuevas.has(id as string)) {
+            await this.chequear(this.sb.from('turnos').insert(f));
+            continue;
+          }
+          const { data, error } = await this.sb.from('turnos').update(resto).eq('id', id as string).select('id');
+          if (error) throw new ErrorRemoto(traducir(error.message));
+          if (!data?.length) throw new ErrorRemoto('No se pudo guardar la caja: ese turno ya está cerrado o no tenés permiso.');
         }
       } else if (c.col === 'ajustes') {
         const { id: _id, ...resto } = filas[0];

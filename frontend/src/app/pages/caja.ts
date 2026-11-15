@@ -355,8 +355,10 @@ export class Caja {
     this.abrirEquipo = this.abrirEquipo.includes(id) ? this.abrirEquipo.filter((x) => x !== id) : [...this.abrirEquipo, id];
   }
 
-  abrir() {
+  async abrir() {
     this.tienda.abrirTurno(this.abrirDef, this.abrirEquipo, this.inicial(), this.billetesInicio());
+    // Si la base lo rechaza, ya se avisó el error y se recargaron los datos.
+    if (!(await this.tienda.confirmarGuardado())) return;
     this.avisos.mostrar(`Caja abierta con ${plata(this.inicial())} de cambio`);
     this.billetesCierre.set({});
     this.confirmarCero.set(false);
@@ -369,9 +371,10 @@ export class Caja {
     this.movMotivo = '';
   }
 
-  cerrar() {
+  async cerrar() {
     const dif = this.diferencia();
     this.tienda.cerrarTurno(this.contado(), this.esperado(), this.nota, this.billetesCierre());
+    if (!(await this.tienda.confirmarGuardado())) return;
     this.avisos.mostrar(dif === 0 ? 'Caja cerrada. Cerró justo.' : `Caja cerrada. ${dif > 0 ? 'Sobraron' : 'Faltaron'} ${plata(Math.abs(dif))}.`, dif === 0 ? 'ok' : 'info');
     this.nota = '';
     this.billetesCierre.set({});

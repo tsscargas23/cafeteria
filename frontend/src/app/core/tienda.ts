@@ -712,6 +712,11 @@ export class Tienda {
 
   // ---------- Turnos y caja ----------
 
+  /** Espera a que la base confirme los últimos cambios (abrir o cerrar la caja). false = la base los rechazó. */
+  confirmarGuardado(): Promise<boolean> {
+    return this.remoto ? this.remoto.esperarGuardado() : Promise.resolve(true);
+  }
+
   abrirTurno(defId: string, empleadaIds: string[], efectivoInicial: number, billetesInicial?: Billetes): Turno | null {
     if (this.turnoAbierto()) return null;
     const t: Turno = {
