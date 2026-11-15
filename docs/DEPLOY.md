@@ -29,7 +29,7 @@ navegador: precios, totales y permisos se validan en la base.
    servicio, que Supabase pone sola y nunca llega al navegador).
 3. **Authentication → Providers**: dejar solo **Email** (sin Google ni otros). En *Email*, desactivar «Confirm email»
    si las cuentas las crea la dueña a mano, o dejarlo activo si cada empleada confirma la suya.
-4. **Authentication → URL Configuration**: Site URL = la dirección final (`https://panacota.com.ar`). En Redirect URLs,
+4. **Authentication → URL Configuration**: Site URL = la dirección final (`https://panacota.pages.dev`). En Redirect URLs,
    esa misma con `/**` al final, y para probar en la compu `http://localhost:4200/**` y `http://localhost:4300/**`.
    Es a donde vuelve el link de «recuperar contraseña» (`?recuperar=1&code=...`).
 5. **Authentication → Users → Add user**: crear a la dueña con su email y una contraseña provisoria. Copiar su `UUID`.
@@ -60,8 +60,11 @@ Alternativa: un script `supabase/seed.sql` con los datos que ella pase (pendient
    - `SUPABASE_URL` = Project URL
    - `SUPABASE_ANON_KEY` = anon public key
    - `NODE_VERSION` = `22`
-4. **Custom domains** → agregar `panacota.com.ar` (y `www`). Si el dominio es `.com.ar`, en nic.ar hay que apuntar los
-   **servidores DNS** a los dos que Cloudflare indica (tarda hasta 24 h). Si es `.com` comprado en Cloudflare, es automático.
+4. **Sin dominio propio** (decisión del 2026-11-14): se usa la dirección gratis que da Cloudflare, `panacota.pages.dev`
+   (si el nombre está tomado, Cloudflare propone otro). En Supabase, Authentication → URL Configuration: Site URL =
+   esa dirección, y agregarla en Redirect URLs con `/**` al final.
+   Si algún día quiere dominio: **Custom domains** → agregarlo; para `.com.ar`, en nic.ar apuntar los servidores DNS a
+   los de Cloudflare.
 5. Probar: entrar al dominio, ingresar con la dueña, cambiar la contraseña provisoria.
 
 Desde entonces, **cada push a `main` publica solo**. GitHub Pages (la demo) puede quedar como demo pública con datos

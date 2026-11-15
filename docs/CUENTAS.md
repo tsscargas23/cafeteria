@@ -4,7 +4,10 @@
 >
 > **2026-11-14:** Supabase (organización «Panacota», plan Free) y Cloudflare creados con ese email. Alejo invitado en los dos
 > (`alejotassello23@gmail.com`: Owner en Supabase, Super Administrator en Cloudflare). En Cloudflare la verificación en dos
-> pasos está por código al email; falta sumar la app del celular. Pendiente: proyecto de Supabase y dominio. Los precios son los que se veían a esa fecha: conviene
+> pasos está por código al email; falta sumar la app del celular. Pendiente: proyecto de Supabase y dominio.
+>
+> **Decisión (2026-11-14): sin dominio propio por ahora.** Es un sistema de uso interno del local; se usa la dirección gratis
+> de Cloudflare Pages (`panacota.pages.dev` o parecida). La sección 4 queda para el día que quiera uno. Los precios son los que se veían a esa fecha: conviene
 > confirmarlos en cada sitio antes de pagar.
 
 **La regla:** todas las cuentas se abren con **un email del negocio** y quedan a nombre de la dueña. Alejo no necesita
@@ -54,7 +57,7 @@ Acá se aloja el panel y la carta del QR, y se maneja el dominio.
 
 No hace falta cargar tarjeta para esto.
 
-## 4. El dominio: la dirección de la web (lo único que se paga sí o sí)
+## 4. El dominio (opcional: por ahora no se usa)
 
 Es lo que va a decir el QR y el panel, por ejemplo **panacota.com.ar**. Hay dos caminos; conviene decidir uno:
 
