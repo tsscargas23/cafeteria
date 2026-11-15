@@ -58,7 +58,7 @@ import { Tienda } from '../core/tienda';
     <section class="acceso">
       <div class="caja">
         @if (tienda.recuperando()) {
-          <div><h1>Elegí una contraseña nueva</h1><p class="sub">Entraste con el link del email. Escribí tu contraseña nueva dos veces.</p></div>
+          <div><h1>Elegí una contraseña nueva</h1><p class="sub">Entraste con el link del email. Escribí dos veces la contraseña nueva para la cuenta <b>{{ tienda.emailRecuperando() }}</b>.</p></div>
           <form (ngSubmit)="guardarNueva()">
             <label class="campo"><span>Contraseña nueva</span><input class="input" name="n1" [(ngModel)]="nueva1" type="password" autocomplete="new-password" /><small>Al menos 8 caracteres.</small></label>
             <label class="campo"><span>Repetila</span><input class="input" name="n2" [(ngModel)]="nueva2" type="password" autocomplete="new-password" /></label>

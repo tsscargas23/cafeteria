@@ -21,7 +21,8 @@ navegador: precios, totales y permisos se validan en la base.
      guardarla en el gestor de contraseñas de la dueña (no se usa a diario).
 2. **SQL Editor** → correr, en orden, `supabase/migrations/0001_inicial.sql` y `0002_ventas_y_permisos.sql`. Crean tablas,
    permisos, tiempo real, las funciones de venta/anulación/ingreso y los datos iniciales (categorías, turnos, salones y
-   las 12 mesas). Se pueden volver a correr sin romper nada.
+   las 12 mesas). **Cada migración se corre una sola vez y en orden.** No volver a correr una vieja: la 0002 recrearía
+   versiones de las funciones de venta y de los permisos de caja que la 0008 corrigió.
    **Hecho el 2026-11-14:** proyecto `panacota` (ref `bwqwmruqzjzzwxukskqr`, São Paulo), 0001 aplicada, registro abierto
    desactivado, solo Email, dueña creada con `panacotacafe@gmail.com`.
 2b. **Edge Functions → Deploy a new function → Via Editor**: nombre `empleadas`, código de
@@ -36,6 +37,10 @@ navegador: precios, totales y permisos se validan en la base.
    Después, `0005_permisos_y_tiempo_real.sql` (arregla `permiso()` y suma `insumos` al tiempo real),
    `0006_stock_con_mas_decimales.sql` y `0007_carta_publica.sql` (la carta del QR se lee sin sesión por la función
    `carta_publica()`, que devuelve solo nombres, tamaños, precios y descripciones).
+   Después, `0008_arreglos_auditoria.sql` (arreglos de la auditoría de seguridad: turnos cerrados que no se pueden tocar,
+   precios y pagos validados en la base, recetas solo de la dueña, anulación que devuelve lo que se descontó y el
+   bloqueo de intentos sin carreras). **La función `ingresar` se tiene que volver a desplegar después de la 0008**,
+   porque ahora usa `reservar_intento()`.
    Nota para la auditoría: el límite de intentos de Supabase Auth es por IP, y en este flujo la IP es la de la función.
 3. **Authentication → Providers**: dejar solo **Email** (sin Google ni otros). En *Email*, desactivar «Confirm email»
    si las cuentas las crea la dueña a mano, o dejarlo activo si cada empleada confirma la suya.

@@ -1,15 +1,14 @@
 -- Segunda etapa: ventas y anulaciones por funciones de la base (con el stock en la misma transacción),
 -- ingreso por nombre de usuario, permisos más estrictos y datos iniciales del local.
--- Se puede correr más de una vez sin romper nada.
+-- OJO: no volver a correrla en un proyecto que ya tiene la 0008 o posteriores. Recrearía las versiones viejas de
+-- registrar_venta, anular_venta y de los permisos de caja, que tenían problemas de seguridad. Cada migración se corre
+-- una sola vez y en orden.
 
 -- ---------- Ingresar con nombre de usuario ----------
--- Supabase Auth entra con email; esto traduce "sofia" al email de su cuenta. Solo devuelve algo para cuentas activas.
-create or replace function email_para_ingresar(p_usuario text) returns text
-language sql stable security definer set search_path = public as $$
-  select email from usuarios where lower(usuario) = lower(trim(p_usuario)) and activo limit 1;
-$$;
-revoke all on function email_para_ingresar(text) from public;
-grant execute on function email_para_ingresar(text) to anon, authenticated;
+-- Acá había una función email_para_ingresar() abierta a cualquiera sin sesión, que devolvía el email de una cuenta.
+-- Se sacó: el ingreso por usuario lo hace la Edge Function "ingresar" (0003). Si esta migración se vuelve a correr,
+-- no la revive. Por las dudas, se borra si quedó.
+drop function if exists email_para_ingresar(text);
 
 -- ---------- Registrar una venta ----------
 -- Recibe la venta armada en la pantalla y, en una sola transacción: valida permisos, caja abierta, productos y que

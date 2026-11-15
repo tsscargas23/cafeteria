@@ -4,7 +4,7 @@
 // Bloquea un usuario 15 minutos después de 5 intentos fallidos. Busca por coincidencia exacta (nunca con ilike: % y _
 // son comodines y permitirían esquivar el bloqueo). Costo aceptado: cualquiera puede bloquear 15 min a una persona.
 // Se despliega SIN "Verify JWT": quien la llama todavía no tiene sesión.
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.119.0';
 
 /**
  * Claves del proyecto que Supabase pone en el entorno de la función. Se prueban las nuevas (sb_publishable / sb_secret,
@@ -54,11 +54,12 @@ Deno.serve(async (req) => {
   const url = Deno.env.get('SUPABASE_URL')!;
   const admin = createClient(url, clave('secreta'), { auth: { persistSession: false } });
 
-  // ¿Demasiados intentos fallidos recientes para este usuario?
-  const desde = new Date(Date.now() - VENTANA_MIN * 60_000).toISOString();
-  const { count } = await admin.from('intentos_ingreso').select('id', { count: 'exact', head: true })
-    .eq('usuario', usuario).eq('exitoso', false).gte('fecha', desde);
-  if ((count ?? 0) >= MAX_FALLIDOS) {
+  // Se reserva el intento ANTES de probar la contraseña, en la base y de a uno por usuario (migración 0008).
+  // Si se contara y se anotara por separado, varios pedidos al mismo tiempo pasarían todos el control.
+  // Queda anotado como fallido hasta que se confirme que entró.
+  const { data: intento, error: errIntento } = await admin.rpc('reservar_intento', { p_usuario: usuario, p_maximo: MAX_FALLIDOS, p_minutos: VENTANA_MIN });
+  if (errIntento) return respuesta({ error: 'No se pudo ingresar. Probá de nuevo en un rato.' }, 503);
+  if (intento === null) {
     return respuesta({ error: `Demasiados intentos. Esperá ${VENTANA_MIN} minutos y probá de nuevo, o pedile a la dueña que te cambie la contraseña.` }, 429);
   }
 
@@ -72,7 +73,7 @@ Deno.serve(async (req) => {
     sesion = data.session;
   }
 
-  await admin.from('intentos_ingreso').insert({ usuario, exitoso: !!sesion });
+  if (sesion) await admin.from('intentos_ingreso').update({ exitoso: true }).eq('id', intento);
 
   // Mismo mensaje si el usuario no existe o si la contraseña está mal.
   if (!sesion) return respuesta({ error: GENERICO }, 401);

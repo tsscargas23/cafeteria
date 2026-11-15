@@ -76,6 +76,10 @@ export class Tienda {
   readonly cargando = signal(this.real);
   /** Al volver desde el link de "recuperar contraseña": hay que pedir la contraseña nueva. */
   readonly recuperando = signal(false);
+  /** Email de la cuenta del link (se muestra para que quede claro a quién se le cambia la contraseña). */
+  readonly emailRecuperando = signal('');
+  /** Cuenta que Supabase validó con el link. La contraseña nueva solo se guarda si la sesión sigue siendo esa. */
+  private idRecuperando: string | null = null;
   readonly usuario = computed(() => this._estado().usuarios.find((u) => u.id === this._usuarioId() && u.activo) ?? null);
   readonly esDuena = computed(() => this.usuario()?.rol === 'duena');
 
@@ -115,9 +119,21 @@ export class Tienda {
     escribir(CLAVE, null);
     escribir(CLAVE_SESION, null);
     const params = new URLSearchParams(location.search);
-    if (params.has('recuperar')) this.recuperando.set(true);
-    sb.auth.onAuthStateChange((evento) => {
-      if (evento === 'PASSWORD_RECOVERY') this.recuperando.set(true);
+    // El modo "contraseña nueva" se activa SOLO cuando Supabase avisa que canjeó el link (PASSWORD_RECOVERY).
+    // Con solo "?recuperar" en la dirección no alcanza: si el link venció o se abrió en otro aparato, la sesión que
+    // queda es la que ya estaba abierta (por ejemplo la de la dueña) y se le cambiaría la contraseña a otra persona.
+    let avisarLink: () => void = () => undefined;
+    const linkCanjeado = new Promise<boolean>((resolver) => {
+      avisarLink = () => resolver(true);
+      setTimeout(() => resolver(false), 3000);
+    });
+    sb.auth.onAuthStateChange((evento, sesion) => {
+      if (evento === 'PASSWORD_RECOVERY' && sesion) {
+        this.idRecuperando = sesion.user.id;
+        this.emailRecuperando.set(sesion.user.email ?? '');
+        this.recuperando.set(true);
+        avisarLink();
+      }
       if (evento === 'SIGNED_OUT') {
         this.remoto!.dejarDeEscuchar();
         if (this.respaldo) clearInterval(this.respaldo);
@@ -126,7 +142,11 @@ export class Tienda {
       }
     });
     try {
-      const { data } = await sb.auth.getSession();
+      let { data } = await sb.auth.getSession();
+      if (params.has('recuperar') && !(await linkCanjeado)) {
+        this.avisos.mostrar('El link para cambiar la contraseña venció, ya se usó o se abrió en otro aparato. Pedí uno nuevo y abrilo desde este mismo aparato.', 'error');
+      }
+      if (params.has('recuperar')) ({ data } = await sb.auth.getSession());
       if (params.has('code') || params.has('recuperar')) history.replaceState(null, '', location.pathname + location.hash);
       if (data.session) await this.entrarCon(data.session.user.id);
     } catch {
@@ -245,9 +265,16 @@ export class Tienda {
   /** Guarda la contraseña nueva después de entrar por el link del email. */
   async nuevaContrasena(contrasena: string): Promise<string | null> {
     if (!this.sb) return null;
+    // Solo se cambia la contraseña de la cuenta que validó el link, nunca la de otra sesión que haya en el aparato.
+    const { data: actual } = await this.sb.auth.getSession();
+    if (!this.recuperando() || !this.idRecuperando || actual.session?.user.id !== this.idRecuperando) {
+      return 'No se pudo guardar. El link puede haber vencido: pedí otro.';
+    }
     const { error, data } = await this.sb.auth.updateUser({ password: contrasena });
     if (error) return /same|different/i.test(error.message) ? 'Tiene que ser distinta a la anterior.' : 'No se pudo guardar. El link puede haber vencido: pedí otro.';
     this.recuperando.set(false);
+    this.idRecuperando = null;
+    this.emailRecuperando.set('');
     if (data.user) await this.entrarCon(data.user.id);
     return null;
   }
@@ -835,7 +862,9 @@ function agruparLineas(items: ItemCuenta[], productos: Producto[]): LineaVenta[]
     const p = productos.find((x) => x.id === i.productoId);
     const v = p?.variantes.find((x) => x.id === i.varianteId);
     lineas.set(clave, {
-      productoId: i.productoId, varianteId: i.varianteId, nombre: p?.nombre ?? i.nombre, variante: v?.nombre ?? '', categoria: i.categoria,
+      productoId: i.productoId, varianteId: i.varianteId, nombre: p?.nombre ?? i.nombre,
+      // Igual que el mostrador y que la base: el tamaño solo se nombra si el producto tiene más de uno.
+      variante: p && p.variantes.length > 1 ? (v?.nombre ?? '') : '', categoria: p?.categoria ?? i.categoria,
       esCafe: p?.esCafe ?? false, precio: i.precio, cantidad: i.cantidad,
     });
   }
