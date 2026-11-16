@@ -11,6 +11,7 @@ delete from turnos;
 delete from movimientos_stock;
 delete from compras;
 delete from intentos_ingreso;
+delete from precios_anteriores;
 alter sequence numero_venta restart with 1;
 
 -- Productos, insumos y proveedores de prueba.
@@ -19,7 +20,10 @@ delete from insumos where nombre ilike 'PRUEBA%';
 delete from proveedores where nombre ilike 'PRUEBA%';
 
 -- Empleadas de prueba: borrar la cuenta de Auth borra también su fila en usuarios (on delete cascade).
-delete from auth.users where id in (select id from usuarios where nombre ilike 'PRUEBA%' and rol = 'empleada');
+-- (Se reconocen por tener PRUEBA en el nombre o un usuario que empieza con "prueba".)
+delete from auth.users where id in (
+  select id from usuarios where rol = 'empleada' and (nombre ilike '%PRUEBA%' or usuario like 'prueba%')
+);
 
 -- Lo que quedó (debería ser solo la dueña y los datos iniciales).
 select (select count(*) from usuarios) as usuarios, (select count(*) from productos) as productos,
