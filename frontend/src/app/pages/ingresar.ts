@@ -69,6 +69,9 @@ import { Tienda } from '../core/tienda';
         @switch (vista()) {
           @case ('entrar') {
             <div><h1>Hola, ¿quién entra?</h1><p class="sub">Entrá con tu usuario y tu contraseña.</p></div>
+            @if (tienda.linkVencido()) {
+              <p class="aviso-linea atencion" role="alert">El link para cambiar la contraseña venció o ya se usó. Si todavía la necesitás cambiar, tocá «¿Te olvidaste la contraseña?» y abrí el email nuevo desde este mismo aparato.</p>
+            }
             <form (ngSubmit)="entrar()">
               <label class="campo"><span>Usuario</span><input class="input" name="usuario" [(ngModel)]="usuario" autocomplete="username" autocapitalize="none" autofocus /></label>
               <label class="campo"><span>Contraseña</span>

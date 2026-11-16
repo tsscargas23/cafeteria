@@ -13,10 +13,10 @@ export class Avisos {
   readonly lista = signal<Aviso[]>([]);
   private siguiente = 1;
 
-  mostrar(texto: string, tipo: Aviso['tipo'] = 'ok', accion?: Aviso['accion']) {
+  mostrar(texto: string, tipo: Aviso['tipo'] = 'ok', accion?: Aviso['accion'], duracion = accion ? 7000 : 4000) {
     const id = this.siguiente++;
     this.lista.update((l) => [...l, { id, texto, tipo, accion }]);
-    setTimeout(() => this.cerrar(id), accion ? 7000 : 4000);
+    setTimeout(() => this.cerrar(id), duracion);
   }
 
   cerrar(id: number) {

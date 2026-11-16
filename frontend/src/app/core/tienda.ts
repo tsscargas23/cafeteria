@@ -9,6 +9,10 @@ import { aplicarAumento, consumo, FilaImportada, nombreItem, pendienteCuenta } f
 import { estadoVacio, Remoto, traducir } from './remoto';
 import { Supabase } from './supabase';
 
+// La dirección con la que se abrió la página, leída antes de que arranque el router: cuando un link de
+// "recuperar contraseña" ya se usó o venció, Supabase vuelve con el error en el "#..." y el router lo pisa enseguida.
+const URL_INICIAL = typeof location === 'undefined' ? '' : location.href;
+
 const CLAVE = 'cafe-demo-v1';
 const CLAVE_SESION = 'cafe-demo-sesion';
 
@@ -76,6 +80,8 @@ export class Tienda {
   readonly cargando = signal(this.real);
   /** Al volver desde el link de "recuperar contraseña": hay que pedir la contraseña nueva. */
   readonly recuperando = signal(false);
+  /** El link de recuperar contraseña no sirvió (venció, ya se usó o se abrió en otro aparato). */
+  readonly linkVencido = signal(false);
   /** Email de la cuenta del link (se muestra para que quede claro a quién se le cambia la contraseña). */
   readonly emailRecuperando = signal('');
   /** Cuenta que Supabase validó con el link. La contraseña nueva solo se guarda si la sesión sigue siendo esa. */
@@ -143,8 +149,10 @@ export class Tienda {
     });
     try {
       let { data } = await sb.auth.getSession();
-      if (params.has('recuperar') && !(await linkCanjeado)) {
-        this.avisos.mostrar('El link para cambiar la contraseña venció, ya se usó o se abrió en otro aparato. Pedí uno nuevo y abrilo desde este mismo aparato.', 'error');
+      const errorEnLink = /[#&?](error|error_code)=/.test(URL_INICIAL.split('#').slice(1).join('#'));
+      if (params.has('recuperar') && (errorEnLink || !(await linkCanjeado))) {
+        this.linkVencido.set(true);
+        this.avisos.mostrar('El link para cambiar la contraseña venció, ya se usó o se abrió en otro aparato. Pedí uno nuevo y abrilo desde este mismo aparato.', 'error', undefined, 12000);
       }
       if (params.has('recuperar')) ({ data } = await sb.auth.getSession());
       if (params.has('code') || params.has('recuperar')) history.replaceState(null, '', location.pathname + location.hash);
