@@ -75,7 +75,7 @@ const SECCIONES: Seccion[] = [
           <div class="usuario">
             <span class="avatar">{{ iniciales(tienda.usuario()?.nombre ?? '') }}</span>
             <span class="quien"><b>{{ tienda.usuario()?.nombre }}</b><small>{{ tienda.esDuena() ? 'Dueña' : 'Empleada' }}</small></span>
-            <button class="btn chico" (click)="salir()"><lucide-icon [img]="iSalir" [size]="16" />Cambiar de usuaria</button>
+            <button class="btn chico" (click)="salir()"><lucide-icon [img]="iSalir" [size]="16" />Cerrar sesión</button>
           </div>
         </header>
         <main class="contenido">
