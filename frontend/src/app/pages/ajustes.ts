@@ -53,7 +53,7 @@ import { nuevoId, Tienda } from '../core/tienda';
               </label>
               <label class="campo"><span>Mandarla a este email</span><input class="input" type="email" [(ngModel)]="a.copia.email" /></label>
             </div>
-            <p class="aviso-linea info"><lucide-icon [img]="iMail" [size]="16" /><span>@if (tienda.real) { Por ahora la copia se descarga desde acá; el envío automático por email se activa cuando esté el dominio. } @else { En el sistema real la copia llega sola por email con un archivo adjunto. En esta demo se descarga a la compu. }</span></p>
+            <p class="aviso-linea info"><lucide-icon [img]="iMail" [size]="16" /><span>@if (tienda.real) { La copia se hace sola a la noche: queda guardada en Google Drive (carpeta «Copias Panacota») y llega por email a esta dirección. Si dejás el email vacío, va al Gmail del negocio. } @else { En el sistema real la copia llega sola por email con un archivo adjunto. En esta demo se descarga a la compu. }</span></p>
             <p class="ter">Última copia: {{ tienda.estado().ajustes.copia.ultima ? fechaHora(tienda.estado().ajustes.copia.ultima!) : 'nunca' }}</p>
             <div class="fila">
               <button class="btn primario" (click)="copia()"><lucide-icon [img]="iBajar" [size]="18" />Descargar copia ahora</button>

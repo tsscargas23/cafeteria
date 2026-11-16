@@ -92,10 +92,19 @@ de ejemplo, porque sin credenciales compila en modo demo.
 
 ## 4. Copias de seguridad
 
-- Plan Free: el botón **Ajustes → Descargar copia ahora** sigue funcionando (baja todo desde Supabase a un `.json`).
-- La copia automática por email se hace con una **función programada** de Supabase (`pg_cron` + Edge Function que arma
-  el archivo y lo manda con Resend). Pendiente: requiere el dominio verificado en Resend.
-- Plan Pro (US$25/mes): copias diarias automáticas de Supabase, sin configurar nada.
+- **Automática (sin dominio):** un Google Apps Script en la cuenta de Google del negocio (`supabase/copia-google/`) corre
+  todas las noches a las 23, le pide los datos a la Edge Function `copia` y guarda un `.json` en Google Drive (carpeta
+  «Copias Panacota», quedan las 120 más nuevas) y lo manda por email a la dirección de Ajustes. Respeta la frecuencia de
+  Ajustes. Si falla, Google avisa por email al dueño del script.
+  - La función `copia` se despliega con **«Verify JWT» apagado** y solo responde a quien manda la clave `COPIA_CLAVE`
+    (secreto de Edge Functions en Supabase; la misma clave vive en las propiedades del script, nunca en el repo).
+  - Instalación: pegar `Codigo.gs` en script.google.com (zona horaria Buenos Aires) → ejecutar `configurar` (crea la
+    clave y la tarea, muestra la clave en el registro) → cargar esa clave en Supabase como `COPIA_CLAVE` → desplegar la
+    función `copia` → ejecutar `copiaAhora` para probar.
+  - Formato: `{tipo: 'copia-panacota-tablas', version: 1, creada, local, tablas: {ajustes, usuarios, ventas, ...}}`, las
+    filas tal cual están en la base (para restaurar con SQL). Las contraseñas no van: quedan en Supabase Auth.
+- **Manual:** **Ajustes → Descargar copia ahora** baja el estado de la app (`tipo: 'copia-cafeteria'`).
+- Plan Pro (US$25/mes): además, copias diarias automáticas de Supabase.
 
 ## 5. Antes de entregar
 

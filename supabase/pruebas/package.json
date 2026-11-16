@@ -2,6 +2,6 @@
   "name": "pruebas-base",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node seguridad.mjs" },
+  "scripts": { "test": "node seguridad.mjs && node --no-warnings copia.mjs && node copia-google.mjs" },
   "devDependencies": { "@electric-sql/pglite": "0.3.14" }
 }
