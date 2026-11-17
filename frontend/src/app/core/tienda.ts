@@ -5,7 +5,7 @@ import {
   Ajustes, Billetes, CartaConfig, Cuenta, Estado, FormaMesa, Insumo, ItemCuenta, LineaVenta, MedioPago, ModoCobro, Producto,
   Proveedor, Turno, TurnoDef, Usuario, Venta,
 } from './modelos';
-import { aplicarAumento, consumo, FilaImportada, FilaProveedor, nombreItem, pendienteCuenta } from './reglas';
+import { aplicarAumento, consumo, FilaImportada, nombreItem, pendienteCuenta } from './reglas';
 import { estadoVacio, Remoto, traducir } from './remoto';
 import { Supabase } from './supabase';
 
@@ -664,28 +664,6 @@ export class Tienda {
       if (k >= 0) e.proveedores[k] = structuredClone(p);
       else e.proveedores.push(structuredClone(p));
     });
-  }
-
-  /**
-   * Carga los proveedores nuevos de la planilla. La deuda que traían del sistema anterior queda como una compra sin
-   * productos («Saldo del sistema anterior»), así se descuenta con «Registrar pago» igual que cualquier deuda.
-   */
-  importarProveedores(filas: FilaProveedor[]): { nuevos: number; conDeuda: number } {
-    let nuevos = 0;
-    let conDeuda = 0;
-    this.mutar((e) => {
-      for (const f of filas) {
-        if (f.accion !== 'nuevo') continue;
-        const prov: Proveedor = { id: nuevoId('pr'), nombre: f.nombre, contacto: '', telefono: f.telefono, diasEntrega: '', notas: '', trae: [] };
-        e.proveedores.push(prov);
-        nuevos++;
-        if (f.deuda && f.deuda > 0) {
-          e.compras.push({ id: nuevoId('c'), proveedorId: prov.id, fecha: Date.now(), items: [], total: f.deuda, pagos: [], comprobante: 'Saldo del sistema anterior' });
-          conDeuda++;
-        }
-      }
-    });
-    return { nuevos, conDeuda };
   }
 
   saldoProveedor(proveedorId: string): number {

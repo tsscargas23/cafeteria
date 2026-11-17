@@ -3,7 +3,6 @@ import { Cuenta, ItemCuenta, LineaVenta, Producto, Turno, Venta } from './modelo
 import {
   aPagarPersona, aplicarAumento, compartidoRestante, consumo, efectivoEsperado, filtrarVentas, filtrosVacios,
   importeFiltrado, partesIguales, pendienteCuenta, porDia, porProducto, resumen, revisarImportacion,
-  revisarImportacionProveedores,
 } from './reglas';
 
 function item(id: string, precio: number, cantidad: number, personaId: string | null, pagado = false): ItemCuenta {
@@ -138,32 +137,5 @@ describe('stock y precios', () => {
     ], productos);
     expect(filas.map((f) => f.accion)).toEqual(['actualiza', 'nuevo', 'error']);
     expect(filas[0].precio).toBe(3000);
-  });
-});
-
-describe('importar proveedores', () => {
-  const existentes = [{ id: 'p1', nombre: 'Café San Jorge', contacto: '', telefono: '', diasEntrega: '', notas: '', trae: [] }];
-
-  it('lee nombre, teléfono y deuda; los que ya existen no se tocan', () => {
-    const filas = revisarImportacionProveedores([
-      { Nombre: 'Distribuidora Bisa', Teléfono: 3465419109, Deuda: 114300 },
-      { Nombre: 'cafe san jorge', Teléfono: '', Deuda: 85940 },
-      { Nombre: 'Camargo', Teléfono: '2473449281' },
-      { Nombre: '', Deuda: 100 },
-    ], existentes);
-    expect(filas.map((f) => f.accion)).toEqual(['nuevo', 'existe', 'nuevo', 'error']);
-    expect(filas[0].telefono).toBe('3465419109');
-    expect(filas[0].deuda).toBe(114300);
-    expect(filas[2].deuda).toBe(0);
-  });
-
-  it('rechaza deudas que no son números y nombres repetidos', () => {
-    const filas = revisarImportacionProveedores([
-      { Nombre: 'Gallo', Deuda: 'mucho' },
-      { Nombre: 'Arban', Deuda: '$ 127.968' },
-      { Nombre: 'ARBAN', Deuda: 5 },
-    ], []);
-    expect(filas.map((f) => f.accion)).toEqual(['error', 'nuevo', 'error']);
-    expect(filas[1].deuda).toBe(127968);
   });
 });
