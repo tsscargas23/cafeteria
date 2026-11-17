@@ -1,5 +1,5 @@
 import {
-  Cuenta, Insumo, ItemCuenta, LineaVenta, MedioPago, Origen, Producto, Turno, Venta,
+  Cuenta, Insumo, ItemCuenta, LineaVenta, MedioPago, Origen, Producto, Proveedor, Turno, Venta,
 } from './modelos';
 
 /**
@@ -327,5 +327,35 @@ export function revisarImportacion(filas: Record<string, unknown>[], existentes:
     const existe = p?.variantes.some((v) => clave(v.nombre) === clave(tamano));
     if (!p && !categoria) return { ...base, accion: 'error', error: 'Producto nuevo sin categoría' };
     return { ...base, accion: existe ? 'actualiza' : 'nuevo', error: null };
+  });
+}
+
+export interface FilaProveedor {
+  fila: number;
+  nombre: string;
+  telefono: string;
+  deuda: number | null;
+  accion: 'nuevo' | 'existe' | 'error';
+  error: string | null;
+}
+
+/**
+ * Revisa la planilla de proveedores (Nombre, Teléfono, Deuda) antes de importar.
+ * Los que ya existen no se tocan: así, importar dos veces la misma planilla no suma la deuda dos veces.
+ */
+export function revisarImportacionProveedores(filas: Record<string, unknown>[], existentes: Proveedor[]): FilaProveedor[] {
+  const vistos = new Set<string>();
+  return filas.map((f, i) => {
+    const nombre = normalizar(columna(f, 'nombre', 'proveedor'));
+    const telefono = normalizar(columna(f, 'telefono', 'whatsapp', 'celular'));
+    const crudo = normalizar(columna(f, 'deuda', 'saldo', 'le debo'));
+    const deuda = crudo ? leerPrecio(columna(f, 'deuda', 'saldo', 'le debo')) : 0;
+    const base = { fila: i + 2, nombre, telefono, deuda };
+    if (!nombre) return { ...base, accion: 'error', error: 'Falta el nombre' };
+    if (deuda === null || deuda < 0) return { ...base, accion: 'error', error: 'La deuda no es un número' };
+    if (vistos.has(clave(nombre))) return { ...base, accion: 'error', error: 'Está repetido en la planilla' };
+    vistos.add(clave(nombre));
+    if (existentes.some((p) => clave(p.nombre) === clave(nombre))) return { ...base, accion: 'existe', error: null };
+    return { ...base, accion: 'nuevo', error: null };
   });
 }

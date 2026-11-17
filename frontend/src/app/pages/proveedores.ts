@@ -2,9 +2,11 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { Avisos } from '../core/avisos';
+import { descargarPlanilla, leerPlanilla } from '../core/excel';
 import { cantidadConUnidad, fecha, num, plata } from '../core/formato';
-import { MessageCircle, Pencil, Plus, Search, Trash2, TriangleAlert, Truck, Wallet, X } from '../core/iconos';
+import { CircleAlert, FileSpreadsheet, MessageCircle, Pencil, Plus, Search, Trash2, TriangleAlert, Truck, Upload, Wallet, X } from '../core/iconos';
 import { MEDIOS_PAGO, MedioPago, Proveedor } from '../core/modelos';
+import { FilaProveedor, revisarImportacionProveedores } from '../core/reglas';
 import { nuevoId, Tienda } from '../core/tienda';
 
 interface FilaCompra { insumoId: string; cantidad: number | null; precio: number; anterior: number | null }
@@ -30,6 +32,7 @@ interface FilaCompra { insumoId: string; cantidad: number | null; precio: number
       <div class="pagina-cab">
         <div class="titulo"><h1>Proveedores</h1><p>Cargá lo que te trae cada uno: se suma solo al inventario y queda anotado cuánto le debés.</p></div>
         <div class="acciones">
+          <button class="btn" (click)="abrirImportar()"><lucide-icon [img]="iSubir" [size]="18" />Importar Excel</button>
           <button class="btn" (click)="nuevo()"><lucide-icon [img]="iMas" [size]="18" />Nuevo proveedor</button>
           <button class="btn primario" (click)="abrirCompra(null)"><lucide-icon [img]="iCamion" [size]="18" />Cargar compra</button>
         </div>
@@ -165,7 +168,7 @@ interface FilaCompra { insumoId: string; cantidad: number | null; precio: number
               @for (c of comprasDe(form.id); track c.id) {
                 <div class="hist">
                   <span class="ter">{{ fecha(c.fecha) }}</span>
-                  <span>{{ resumenCompra(c.items) }}@if (c.comprobante) { <span class="ter"> · {{ c.comprobante }}</span> }</span>
+                  <span>{{ resumenCompra(c.items) }}@if (c.comprobante) { <span class="ter">{{ c.items.length ? ' · ' : '' }}{{ c.comprobante }}</span> }</span>
                   <b>{{ plata(c.total) }}</b>
                   @if (pagadoDe(c) >= c.total) { <span class="etiqueta ok">Pagada</span> } @else { <span class="etiqueta atencion">Debe {{ plata(c.total - pagadoDe(c)) }}</span> }
                 </div>
@@ -180,13 +183,56 @@ interface FilaCompra { insumoId: string; cantidad: number | null; precio: number
         </div>
       </aside>
     }
+
+    @if (panel() === 'importar') {
+      <aside class="lateral ancho" role="dialog" aria-label="Importar proveedores desde Excel">
+        <div class="lateral-cab"><h2>Importar proveedores</h2><button class="btn icono fantasma" (click)="panel.set(null)" aria-label="Cerrar"><lucide-icon [img]="iX" [size]="20" /></button></div>
+        <div class="lateral-cuerpo">
+          <p class="sec">Cargá muchos proveedores de una vez. La planilla necesita la columna <b>Nombre</b>; <b>Teléfono</b> y <b>Deuda</b> son opcionales. La deuda que les tenías queda anotada como «Saldo del sistema anterior» y se descuenta con «Registrar pago». Los proveedores que ya existen no se tocan.</p>
+          <div class="fila">
+            <button class="btn" (click)="bajarPlantilla()"><lucide-icon [img]="iPlanilla" [size]="18" />Bajar planilla de ejemplo</button>
+            <label class="btn primario"><lucide-icon [img]="iSubir" [size]="18" />Elegir archivo<input type="file" accept=".xlsx,.xls,.csv" hidden (change)="leer($any($event.target).files?.[0])" /></label>
+          </div>
+          @if (filasImportar().length) {
+            <div class="fila">
+              <span class="etiqueta ok contador">{{ cuenta('nuevo') }} nuevos</span>
+              @if (cuenta('existe')) { <span class="etiqueta contador">{{ cuenta('existe') }} ya existen (no se tocan)</span> }
+              @if (cuenta('error')) { <span class="etiqueta error contador">{{ cuenta('error') }} con errores (no se importan)</span> }
+            </div>
+            <div class="vista-previa">
+              <table class="tabla">
+                <thead><tr><th>Fila</th><th>Nombre</th><th>Teléfono</th><th class="num">Deuda</th><th>Qué pasa</th></tr></thead>
+                <tbody>
+                  @for (f of filasImportar(); track f.fila) {
+                    <tr>
+                      <td class="ter">{{ f.fila }}</td><td>{{ f.nombre || '—' }}</td><td class="sec">{{ f.telefono || '—' }}</td>
+                      <td class="num">{{ f.deuda !== null ? plata(f.deuda) : '—' }}</td>
+                      <td>
+                        @if (f.accion === 'error') { <span class="etiqueta error"><lucide-icon [img]="iError" [size]="12" />{{ f.error }}</span> }
+                        @else if (f.accion === 'nuevo') { <span class="etiqueta ok">Nuevo</span> }
+                        @else { <span class="etiqueta">Ya existe</span> }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+        <div class="lateral-pie">
+          <button class="btn" (click)="panel.set(null)">Cancelar</button>
+          <button class="btn primario" [disabled]="!cuenta('nuevo')" (click)="importar()">Importar {{ cuenta('nuevo') }} proveedores</button>
+        </div>
+      </aside>
+    }
   `,
 })
 export class Proveedores {
   protected readonly tienda = inject(Tienda);
   private readonly avisos = inject(Avisos);
   protected readonly busqueda = signal('');
-  protected readonly panel = signal<'compra' | 'ficha' | null>(null);
+  protected readonly panel = signal<'compra' | 'ficha' | 'importar' | null>(null);
+  protected readonly filasImportar = signal<FilaProveedor[]>([]);
   protected readonly compraProv = signal<string | null>(null);
   protected filasCompra: FilaCompra[] = [];
   protected comprobante = '';
@@ -215,6 +261,9 @@ export class Proveedores {
   protected readonly iEditar = Pencil;
   protected readonly iWhatsapp = MessageCircle;
   protected readonly iBilletera = Wallet;
+  protected readonly iSubir = Upload;
+  protected readonly iPlanilla = FileSpreadsheet;
+  protected readonly iError = CircleAlert;
 
   nombreInsumo(id: string) {
     return this.tienda.estado().insumos.find((i) => i.id === id)?.nombre ?? '—';
@@ -230,7 +279,8 @@ export class Proveedores {
   }
 
   ultimaCompra(provId: string) {
-    const c = this.comprasDe(provId)[0];
+    // El saldo que vino del sistema anterior no es una compra de verdad.
+    const c = this.comprasDe(provId).find((x) => x.items.length);
     return c ? fecha(c.fecha) : 'nunca';
   }
 
@@ -310,6 +360,40 @@ export class Proveedores {
     this.tienda.guardarProveedor(this.form);
     this.avisos.mostrar(`${this.form.nombre} guardado`);
     this.panel.set(null);
+  }
+
+  abrirImportar() {
+    this.filasImportar.set([]);
+    this.panel.set('importar');
+  }
+
+  async leer(archivo: File | undefined) {
+    if (!archivo) return;
+    try {
+      this.filasImportar.set(revisarImportacionProveedores(await leerPlanilla(archivo), this.tienda.estado().proveedores));
+    } catch {
+      this.avisos.mostrar('No se pudo leer el archivo. Guardalo como .xlsx o .csv y probá de nuevo.', 'error');
+    }
+  }
+
+  cuenta(accion: FilaProveedor['accion']) {
+    return this.filasImportar().filter((f) => f.accion === accion).length;
+  }
+
+  importar() {
+    const r = this.tienda.importarProveedores(this.filasImportar());
+    this.avisos.mostrar(`Importados ${r.nuevos} proveedores${r.conDeuda ? `, ${r.conDeuda} con deuda anterior` : ''}`);
+    this.panel.set(null);
+  }
+
+  bajarPlantilla() {
+    descargarPlanilla('planilla-proveedores.xlsx', [{
+      nombre: 'Proveedores',
+      filas: [
+        { Nombre: 'Distribuidora del Centro', Teléfono: '3415550000', Deuda: 25000 },
+        { Nombre: 'Lácteos La Vaquita', Teléfono: '', Deuda: 0 },
+      ],
+    }]);
   }
 
   pagarSaldo() {
