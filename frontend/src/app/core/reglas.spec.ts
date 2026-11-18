@@ -138,4 +138,19 @@ describe('stock y precios', () => {
     expect(filas.map((f) => f.accion)).toEqual(['actualiza', 'nuevo', 'error']);
     expect(filas[0].precio).toBe(3000);
   });
+
+  it('la importación lee el stock y una fila sin precio solo carga stock', () => {
+    const unico: Producto[] = [{ ...productos[0], id: 'k', nombre: 'Coca-Cola vidrio', variantes: [{ id: 'kv', nombre: 'Único', precio: 2500, receta: [] }] }];
+    const filas = revisarImportacion([
+      { Producto: 'coca-cola vidrio', Stock: 12, 'Mínimo': '3', 'Precio costo': '1.136' },
+      { Producto: 'Coca-Cola vidrio', Precio: 2600, Stock: '' },
+      { Producto: 'Fanta vidrio', Stock: 9 },
+      { Producto: 'Coca-Cola vidrio', Stock: 'doce' },
+      { Producto: 'Sprite', Categoría: 'Bebidas', Precio: 2500, Stock: 0 },
+    ], unico);
+    expect(filas.map((f) => f.accion)).toEqual(['actualiza', 'actualiza', 'error', 'error', 'nuevo']);
+    expect(filas[0]).toMatchObject({ tamano: 'Único', precio: null, stock: 12, minimo: 3, costo: 1136 });
+    expect(filas[1]).toMatchObject({ precio: 2600, stock: null });
+    expect(filas[4].stock).toBe(0);
+  });
 });

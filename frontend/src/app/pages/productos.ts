@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { Avisos } from '../core/avisos';
 import { descargarPlanilla, leerPlanilla } from '../core/excel';
-import { plata } from '../core/formato';
+import { num, plata } from '../core/formato';
 import { CircleAlert, Download, FileSpreadsheet, Pencil, Percent, Plus, Search, Trash2, Upload, X } from '../core/iconos';
 import { DondeSeVende, Producto } from '../core/modelos';
 import { aplicarAumento, FilaImportada, revisarImportacion } from '../core/reglas';
@@ -178,6 +178,7 @@ type Panel = null | 'editar' | 'aumento' | 'importar';
             <div class="lateral-cab"><h2>Importar desde Excel</h2><button class="btn icono fantasma" (click)="panel.set(null)" aria-label="Cerrar"><lucide-icon [img]="iX" [size]="20" /></button></div>
             <div class="lateral-cuerpo">
               <p class="sec">Cargá muchos productos de una vez. La planilla necesita las columnas <b>Producto</b>, <b>Categoría</b>, <b>Tamaño</b> y <b>Precio</b>. Si el producto y el tamaño ya existen, se actualiza el precio; no se duplica nada.</p>
+              <p class="sec">Para controlar stock, sumá las columnas <b>Stock</b> y, si querés, <b>Mínimo</b> y <b>Precio costo</b>. Los productos con stock aparecen en Inventario y bajan de a uno con cada venta. Si una fila no tiene precio, solo se carga el stock.</p>
               <div class="fila">
                 <button class="btn" (click)="bajarPlantilla()"><lucide-icon [img]="iPlanilla" [size]="18" />Bajar planilla de ejemplo</button>
                 <label class="btn primario"><lucide-icon [img]="iSubir" [size]="18" />Elegir archivo<input type="file" accept=".xlsx,.xls,.csv" hidden (change)="leer($any($event.target).files?.[0])" /></label>
@@ -185,21 +186,24 @@ type Panel = null | 'editar' | 'aumento' | 'importar';
               @if (filas().length) {
                 <div class="fila">
                   <span class="etiqueta ok contador">{{ cuenta('nuevo') }} nuevos</span>
-                  <span class="etiqueta acento contador">{{ cuenta('actualiza') }} actualizan precio</span>
+                  <span class="etiqueta acento contador">{{ cuentaPrecios() }} actualizan precio</span>
+                  @if (cuentaStock()) { <span class="etiqueta contador">{{ cuentaStock() }} con stock</span> }
                   @if (cuenta('error')) { <span class="etiqueta error contador">{{ cuenta('error') }} con errores (no se importan)</span> }
                 </div>
                 <div class="vista-previa">
                   <table class="tabla">
-                    <thead><tr><th>Fila</th><th>Producto</th><th>Categoría</th><th>Tamaño</th><th class="num">Precio</th><th>Qué pasa</th></tr></thead>
+                    <thead><tr><th>Fila</th><th>Producto</th><th>Categoría</th><th>Tamaño</th><th class="num">Precio</th><th class="num">Stock</th><th>Qué pasa</th></tr></thead>
                     <tbody>
                       @for (f of filas(); track f.fila) {
                         <tr>
                           <td class="ter">{{ f.fila }}</td><td>{{ f.producto || '—' }}</td><td class="sec">{{ f.categoria || '—' }}</td><td>{{ f.tamano }}</td>
                           <td class="num">{{ f.precio !== null ? plata(f.precio) : '—' }}</td>
+                          <td class="num">{{ f.stock !== null && f.accion !== 'error' ? num(f.stock) : '—' }}</td>
                           <td>
                             @if (f.accion === 'error') { <span class="etiqueta error"><lucide-icon [img]="iAlerta" [size]="12" />{{ f.error }}</span> }
-                            @else if (f.accion === 'nuevo') { <span class="etiqueta ok">Nuevo</span> }
-                            @else { <span class="etiqueta acento">Actualiza precio</span> }
+                            @else if (f.accion === 'nuevo') { <span class="etiqueta ok">{{ f.stock !== null ? 'Nuevo, con stock' : 'Nuevo' }}</span> }
+                            @else if (f.precio === null) { <span class="etiqueta acento">Carga stock</span> }
+                            @else { <span class="etiqueta acento">{{ f.stock !== null ? 'Actualiza precio y stock' : 'Actualiza precio' }}</span> }
                           </td>
                         </tr>
                       }
@@ -245,6 +249,7 @@ export class Productos {
   });
 
   protected readonly plata = plata;
+  protected readonly num = num;
   protected readonly iSubir = Upload;
   protected readonly iBajar = Download;
   protected readonly iPorcentaje = Percent;
@@ -355,9 +360,18 @@ export class Productos {
     return this.filas().filter((f) => f.accion === accion).length;
   }
 
+  cuentaPrecios() {
+    return this.filas().filter((f) => f.accion === 'actualiza' && f.precio !== null).length;
+  }
+
+  cuentaStock() {
+    return this.filas().filter((f) => f.accion !== 'error' && f.stock !== null).length;
+  }
+
   importar() {
     const r = this.tienda.importarProductos(this.filas());
-    this.avisos.mostrar(`Importado: ${r.nuevos} tamaños nuevos y ${r.actualizados} precios actualizados`);
+    const stock = r.conStock ? ` y ${r.conStock} con stock en Inventario` : '';
+    this.avisos.mostrar(`Importado: ${r.nuevos} tamaños nuevos, ${r.actualizados} precios actualizados${stock}`);
     this.panel.set(null);
   }
 

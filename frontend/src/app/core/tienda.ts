@@ -621,30 +621,56 @@ export class Tienda {
     return cambiados;
   }
 
-  importarProductos(filas: FilaImportada[]): { nuevos: number; actualizados: number } {
+  importarProductos(filas: FilaImportada[]): { nuevos: number; actualizados: number; conStock: number } {
     let nuevos = 0;
     let actualizados = 0;
+    let conStock = 0;
     const clave = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
     this.mutar((e) => {
       for (const f of filas) {
-        if (f.accion === 'error' || f.precio === null) continue;
+        if (f.accion === 'error') continue;
         let p = e.productos.find((x) => clave(x.nombre) === clave(f.producto));
         if (!p) {
+          if (f.precio === null) continue;
           p = { id: nuevoId('p'), nombre: f.producto, categoria: f.categoria, descripcion: '', variantes: [], dondeSeVende: 'ambos', activo: true, esCafe: clave(f.categoria) === 'cafeteria' };
           e.productos.push(p);
           if (!e.categorias.includes(f.categoria)) e.categorias.push(f.categoria);
         }
-        const v = p.variantes.find((x) => clave(x.nombre) === clave(f.tamano));
-        if (v) {
-          v.precio = f.precio;
-          actualizados++;
-        } else {
-          p.variantes.push({ id: nuevoId('va'), nombre: f.tamano, precio: f.precio, receta: [] });
-          nuevos++;
+        let v = p.variantes.find((x) => clave(x.nombre) === clave(f.tamano));
+        if (f.precio !== null) {
+          if (v) {
+            v.precio = f.precio;
+            actualizados++;
+          } else {
+            v = { id: nuevoId('va'), nombre: f.tamano, precio: f.precio, receta: [] };
+            p.variantes.push(v);
+            nuevos++;
+          }
         }
+        if (!v || f.stock === null) continue;
+        // Stock: un insumo con el nombre del producto (y del tamaño, si no es "Único") que se descuenta de a 1 por venta.
+        const nombre = clave(v.nombre) === 'unico' ? p.nombre : `${p.nombre} · ${v.nombre}`;
+        const receta = v.receta;
+        let insumo =
+          e.insumos.find((i) => receta.some((r) => r.insumoId === i.id) && clave(i.nombre) === clave(nombre)) ??
+          e.insumos.find((i) => clave(i.nombre) === clave(nombre));
+        if (!insumo) {
+          insumo = { id: nuevoId('i'), nombre, categoria: p.categoria, unidad: 'u', stock: 0, minimo: 0, costo: 0 };
+          e.insumos.push(insumo);
+        }
+        if (f.minimo !== null) insumo.minimo = redondear(f.minimo);
+        if (f.costo !== null) insumo.costo = f.costo;
+        const diferencia = redondear(f.stock - insumo.stock);
+        if (diferencia !== 0) {
+          insumo.stock = redondear(f.stock);
+          e.movimientos.push({ id: nuevoId('ms'), insumoId: insumo.id, fecha: Date.now(), tipo: 'ajuste', cantidad: diferencia, detalle: 'Stock cargado desde Excel' });
+        }
+        const id = insumo.id;
+        if (!receta.some((r) => r.insumoId === id)) receta.push({ insumoId: id, cantidad: 1 });
+        conStock++;
       }
     });
-    return { nuevos, actualizados };
+    return { nuevos, actualizados, conStock };
   }
 
   // ---------- Inventario ----------

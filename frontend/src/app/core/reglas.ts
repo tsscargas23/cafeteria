@@ -283,7 +283,12 @@ export interface FilaImportada {
   producto: string;
   categoria: string;
   tamano: string;
+  /** null = la fila no trae precio: solo se carga el stock de un producto que ya existe. */
   precio: number | null;
+  /** Columnas opcionales para controlar stock: si hay Stock, el producto descuenta 1 por venta. */
+  stock: number | null;
+  minimo: number | null;
+  costo: number | null;
   accion: 'nuevo' | 'actualiza' | 'error';
   error: string | null;
 }
@@ -310,22 +315,42 @@ function columna(fila: Record<string, unknown>, ...nombres: string[]): unknown {
   return undefined;
 }
 
+function leerCantidad(v: unknown): number | null {
+  if (typeof v === 'number') return v;
+  const s = normalizar(v).replace(/\s/g, '').replace(',', '.');
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 /**
  * Revisa las filas de la planilla (Producto, Categoría, Tamaño, Precio) antes de importar.
  * Si el producto y el tamaño ya existen, se actualiza el precio; nunca se duplican.
+ * Opcionales: Stock, Mínimo y Precio costo. Una fila sin precio solo carga el stock de un producto que ya existe.
  */
 export function revisarImportacion(filas: Record<string, unknown>[], existentes: Producto[]): FilaImportada[] {
-  return filas.map((f, i) => {
+  return filas.map((f, i): FilaImportada => {
     const producto = normalizar(columna(f, 'producto', 'nombre'));
     const categoria = normalizar(columna(f, 'categoria'));
-    const tamano = normalizar(columna(f, 'tamano', 'tamaño', 'variante', 'presentacion')) || 'Único';
-    const precio = leerPrecio(columna(f, 'precio'));
-    const base = { fila: i + 2, producto, categoria, tamano, precio };
-    if (!producto) return { ...base, accion: 'error', error: 'Falta el nombre del producto' };
-    if (precio === null || precio <= 0) return { ...base, accion: 'error', error: 'El precio está vacío o no es un número' };
     const p = existentes.find((x) => clave(x.nombre) === clave(producto));
-    const existe = p?.variantes.some((v) => clave(v.nombre) === clave(tamano));
-    if (!p && !categoria) return { ...base, accion: 'error', error: 'Producto nuevo sin categoría' };
+    // Sin tamaño, un producto que ya existe con un solo tamaño se refiere a ese.
+    const tamano = normalizar(columna(f, 'tamano', 'tamaño', 'variante', 'presentacion')) || (p?.variantes.length === 1 ? p.variantes[0].nombre : 'Único');
+    const precio = leerPrecio(columna(f, 'precio', 'precio venta', 'precio de venta'));
+    const stock = leerCantidad(columna(f, 'stock'));
+    const minimo = leerCantidad(columna(f, 'minimo'));
+    const costo = leerPrecio(columna(f, 'precio costo', 'costo'));
+    const base = { fila: i + 2, producto, categoria, tamano, precio, stock, minimo, costo };
+    const error = (texto: string): FilaImportada => ({ ...base, accion: 'error', error: texto });
+    if (!producto) return error('Falta el nombre del producto');
+    if (Number.isNaN(stock) || (stock !== null && stock < 0)) return error('El stock no es un número válido');
+    if (Number.isNaN(minimo) || (minimo !== null && minimo < 0)) return error('El mínimo no es un número válido');
+    if (costo !== null && costo < 0) return error('El costo no es un número válido');
+    const existe = !!p?.variantes.some((v) => clave(v.nombre) === clave(tamano));
+    if (precio === null && stock !== null) {
+      return existe ? { ...base, accion: 'actualiza', error: null } : error('No hay un producto con ese nombre y tamaño: revisá cómo está escrito');
+    }
+    if (precio === null || precio <= 0) return error('El precio está vacío o no es un número');
+    if (!p && !categoria) return error('Producto nuevo sin categoría');
     return { ...base, accion: existe ? 'actualiza' : 'nuevo', error: null };
   });
 }
