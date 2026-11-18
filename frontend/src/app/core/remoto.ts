@@ -107,7 +107,7 @@ type Coleccion = 'categorias' | 'productos' | 'insumos' | 'proveedores' | 'compr
 
 const TABLAS: { col: Coleccion; tabla: string; borra: boolean }[] = [
   { col: 'categorias', tabla: 'categorias', borra: false },
-  { col: 'productos', tabla: 'productos', borra: false },
+  { col: 'productos', tabla: 'productos', borra: true },
   { col: 'insumos', tabla: 'insumos', borra: true },
   { col: 'proveedores', tabla: 'proveedores', borra: true },
   { col: 'compras', tabla: 'compras', borra: false },

@@ -589,6 +589,17 @@ export class Tienda {
     });
   }
 
+  /** Borra el producto. No se puede si está en una mesa abierta. Las ventas pasadas conservan su nombre y precio. */
+  borrarProducto(productoId: string): string | null {
+    if (this.estado().cuentas.some((c) => c.items.some((i) => i.productoId === productoId))) {
+      return 'Está cargado en una mesa abierta. Cobrá o sacalo de esa mesa y después borralo.';
+    }
+    this.mutar((e) => {
+      e.productos = e.productos.filter((x) => x.id !== productoId);
+    });
+    return null;
+  }
+
   cambiarActivo(productoId: string, activo: boolean) {
     this.mutar((e) => {
       const p = e.productos.find((x) => x.id === productoId);
@@ -643,6 +654,16 @@ export class Tienda {
       const k = e.insumos.findIndex((x) => x.id === i.id);
       if (k >= 0) e.insumos[k] = { ...i };
       else e.insumos.push({ ...i });
+    });
+  }
+
+  /** Borra el insumo y lo saca de las recetas y de lo que trae cada proveedor. */
+  borrarInsumo(insumoId: string) {
+    this.mutar((e) => {
+      e.insumos = e.insumos.filter((x) => x.id !== insumoId);
+      e.movimientos = e.movimientos.filter((m) => m.insumoId !== insumoId);
+      for (const p of e.productos) for (const v of p.variantes) v.receta = v.receta.filter((r) => r.insumoId !== insumoId);
+      for (const p of e.proveedores) p.trae = p.trae.filter((t) => t.insumoId !== insumoId);
     });
   }
 

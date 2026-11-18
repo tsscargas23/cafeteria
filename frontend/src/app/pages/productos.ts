@@ -28,7 +28,7 @@ type Panel = null | 'editar' | 'aumento' | 'importar';
   template: `
     <div class="pagina">
       <div class="pagina-cab">
-        <div class="titulo"><h1>Productos</h1><p>Lo que vendés, con sus tamaños y precios. Todo se edita sin borrar nada.</p></div>
+        <div class="titulo"><h1>Productos</h1><p>Lo que vendés, con sus tamaños y precios. Si algo no hay por hoy, pausalo en vez de borrarlo.</p></div>
         <div class="acciones">
           <button class="btn" (click)="abrirImportar()"><lucide-icon [img]="iSubir" [size]="18" />Importar Excel</button>
           <button class="btn" (click)="exportar()"><lucide-icon [img]="iBajar" [size]="18" />Exportar</button>
@@ -130,8 +130,15 @@ type Panel = null | 'editar' | 'aumento' | 'importar';
               @if (intento && error()) { <p class="aviso-linea atencion">{{ error() }}</p> }
             </div>
             <div class="lateral-pie">
-              <button class="btn" (click)="panel.set(null)">Cancelar</button>
-              <button class="btn primario" (click)="guardar()">Guardar</button>
+              @if (borrando()) {
+                <span class="sec confirmar">¿Borrar {{ form.nombre }}? No se puede deshacer.</span>
+                <button class="btn" (click)="borrando.set(false)">No</button>
+                <button class="btn peligro" (click)="borrar()">Sí, borrar</button>
+              } @else {
+                @if (!esNuevo) { <button class="btn peligro izquierda" (click)="borrando.set(true)"><lucide-icon [img]="iBorrar" [size]="17" />Borrar</button> }
+                <button class="btn" (click)="panel.set(null)">Cancelar</button>
+                <button class="btn primario" (click)="guardar()">Guardar</button>
+              }
             </div>
           </aside>
         }
@@ -224,6 +231,7 @@ export class Productos {
   protected form: Producto = vacio();
   protected esNuevo = false;
   protected intento = false;
+  protected readonly borrando = signal(false);
   protected categoriaNueva = '';
   protected aumento = { porcentaje: 10, redondeo: 100, categoria: null as string | null };
 
@@ -268,7 +276,19 @@ export class Productos {
     this.form = structuredClone(p);
     this.esNuevo = false;
     this.intento = false;
+    this.borrando.set(false);
     this.panel.set('editar');
+  }
+
+  borrar() {
+    const error = this.tienda.borrarProducto(this.form.id);
+    this.borrando.set(false);
+    if (error) {
+      this.avisos.mostrar(error, 'error');
+      return;
+    }
+    this.avisos.mostrar(`${this.form.nombre} borrado`);
+    this.panel.set(null);
   }
 
   sumarVariante() {

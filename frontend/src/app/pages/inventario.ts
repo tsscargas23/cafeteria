@@ -1,10 +1,11 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { Avisos } from '../core/avisos';
 import { descargarPlanilla, leerPlanilla } from '../core/excel';
 import { cantidadConUnidad, fechaHora, num, plata } from '../core/formato';
-import { CircleAlert, CircleCheck, CircleX, Coffee, Download, History, Pencil, Plus, Search, TriangleAlert, Upload, X } from '../core/iconos';
+import { CircleAlert, CircleCheck, CircleX, Coffee, Download, History, Pencil, Plus, Search, Trash2, TriangleAlert, Upload, X } from '../core/iconos';
 import { Insumo, Unidad } from '../core/modelos';
 import { estadoStock, filtrosVacios, kilosCafe } from '../core/reglas';
 import { nuevoId, Tienda } from '../core/tienda';
@@ -13,7 +14,7 @@ interface FilaInsumo { fila: number; nombre: string; categoria: string; unidad: 
 
 @Component({
   selector: 'app-inventario',
-  imports: [FormsModule, LucideAngularModule],
+  imports: [FormsModule, LucideAngularModule, RouterLink],
   styles: `
     .cafe { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding: 16px 18px;
       .icono-cafe { width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-text); display: grid; place-items: center; }
@@ -25,7 +26,7 @@ interface FilaInsumo { fila: number; nombre: string; categoria: string; unidad: 
   template: `
     <div class="pagina">
       <div class="pagina-cab">
-        <div class="titulo"><h1>Inventario</h1><p>Lo que comprás para vender. Se descuenta solo con cada venta y se suma con cada compra a un proveedor.</p></div>
+        <div class="titulo"><h1>Inventario</h1><p>El stock de lo que comprás (café en grano, leche, gaseosas…), para saber cuánto queda y cuándo pedir. Lo que se vende y tiene precio se carga en <a routerLink="/productos">Productos</a>.</p></div>
         <div class="acciones">
           <button class="btn" (click)="abrirImportar()"><lucide-icon [img]="iSubir" [size]="18" />Importar Excel</button>
           <button class="btn" (click)="exportar()"><lucide-icon [img]="iBajar" [size]="18" />Exportar</button>
@@ -95,6 +96,7 @@ interface FilaInsumo { fila: number; nombre: string; categoria: string; unidad: 
       <aside class="lateral" role="dialog" aria-label="Editar insumo">
         <div class="lateral-cab"><h2>{{ esNuevo ? 'Nuevo insumo' : form.nombre }}</h2><button class="btn icono fantasma" (click)="panel.set(null)" aria-label="Cerrar"><lucide-icon [img]="iX" [size]="20" /></button></div>
         <div class="lateral-cuerpo">
+          @if (esNuevo) { <p class="sec">Esto solo lleva la cuenta del stock: no aparece para vender ni en la carta. Para venderlo, cargalo en <a routerLink="/productos">Productos</a>.</p> }
           <label class="campo"><span>Nombre</span><input class="input" [(ngModel)]="form.nombre" /></label>
           <div class="grilla-2">
             <label class="campo"><span>Categoría</span><input class="input" [(ngModel)]="form.categoria" list="cats" /><datalist id="cats">@for (c of categorias(); track c) { <option [value]="c"></option> }</datalist></label>
@@ -125,8 +127,15 @@ interface FilaInsumo { fila: number; nombre: string; categoria: string; unidad: 
           }
         </div>
         <div class="lateral-pie">
-          <button class="btn" (click)="panel.set(null)">Cancelar</button>
-          <button class="btn primario" [disabled]="!form.nombre.trim()" (click)="guardar()">Guardar</button>
+          @if (borrando()) {
+            <span class="sec confirmar">¿Borrar {{ form.nombre }}? No se puede deshacer.</span>
+            <button class="btn" (click)="borrando.set(false)">No</button>
+            <button class="btn peligro" (click)="borrar()">Sí, borrar</button>
+          } @else {
+            @if (!esNuevo) { <button class="btn peligro izquierda" (click)="borrando.set(true)"><lucide-icon [img]="iBorrar" [size]="17" />Borrar</button> }
+            <button class="btn" (click)="panel.set(null)">Cancelar</button>
+            <button class="btn primario" [disabled]="!form.nombre.trim()" (click)="guardar()">Guardar</button>
+          }
         </div>
       </aside>
     }
@@ -174,6 +183,7 @@ export class Inventario {
   protected readonly validas = computed(() => this.filas().filter((f) => !f.error));
   protected form: Insumo = this.vacio();
   protected esNuevo = false;
+  protected readonly borrando = signal(false);
   protected contado: number | null = null;
   protected motivo = '';
 
@@ -210,6 +220,7 @@ export class Inventario {
   protected readonly iBuscar = Search;
   protected readonly iEditar = Pencil;
   protected readonly iX = X;
+  protected readonly iBorrar = Trash2;
   protected readonly iOk = CircleCheck;
   protected readonly iAlerta = TriangleAlert;
   protected readonly iSin = CircleX;
@@ -236,7 +247,15 @@ export class Inventario {
     this.esNuevo = false;
     this.contado = null;
     this.motivo = '';
+    this.borrando.set(false);
     this.panel.set('editar');
+  }
+
+  borrar() {
+    this.tienda.borrarInsumo(this.form.id);
+    this.borrando.set(false);
+    this.avisos.mostrar(`${this.form.nombre} borrado`);
+    this.panel.set(null);
   }
 
   guardar() {
