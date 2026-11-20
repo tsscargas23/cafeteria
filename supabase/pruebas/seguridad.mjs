@@ -19,11 +19,13 @@ await db.exec(`
   grant usage on schema auth to anon, authenticated, service_role;
   grant execute on function auth.uid() to anon, authenticated, service_role;
   create publication supabase_realtime;
+  -- Como Supabase: toda función nueva del esquema public se puede ejecutar sin sesión, salvo que se revoque.
+  alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 `);
 for (const f of readdirSync(MIG).filter((x) => x.endsWith('.sql')).sort()) {
   let sql = readFileSync(MIG + f, 'utf8');
   sql = sql.replace('create extension if not exists pgcrypto;', '');
-  if (f.startsWith('0008')) sql = sql.replace("notify pgrst, 'reload schema';", '');
+  sql = sql.replace("notify pgrst, 'reload schema';", '');
   try { await db.exec(sql); } catch (e) { console.log('ERROR en', f, e.message, e.where ?? ''); process.exit(2); }
   console.log('aplicada', f);
   if (f.startsWith('0001')) await db.exec(`grant usage on schema public to anon, authenticated, service_role;`);
@@ -182,6 +184,21 @@ check(err && /permission denied/.test(err), 'una sesión normal NO puede llamar 
 await db.exec(`reset role`); await db.exec(`set role anon`);
 err = await intenta(`select reservar_intento('emp', 999, 15)`);
 check(err && /permission denied/.test(err), 'sin sesión tampoco');
+
+console.log('\n== Funciones sin sesión');
+await db.exec(`reset role`); await db.exec(`set role anon`);
+for (const f of [`registrar_venta('{}'::jsonb)`, `anular_venta('${D}', 'x')`, `resumen_ventas(now(), now())`, `ventas_por_producto(now(), now())`]) {
+  err = await intenta(`select * from ${f}`);
+  check(err && /permission denied/.test(err), `sin sesión NO se puede llamar ${f.split('(')[0]}`);
+}
+err = await intenta(`select carta_publica()`);
+check(!err, 'sin sesión SÍ se puede ver la carta: ' + (err ?? 'ok'));
+await como(D);
+err = await intenta(`select * from resumen_ventas(now() - interval '1 day', now())`);
+check(!err, 'con sesión los reportes andan: ' + (err ?? 'ok'));
+await admin();
+const rutas = await q(`select proname, proconfig from pg_proc where proname in ('resumen_ventas', 'ventas_por_producto')`);
+check(rutas.every((r) => String(r.proconfig).includes('search_path=public')), 'los reportes tienen search_path fijo');
 
 console.log(`\nResultado: ${ok} OK, ${mal} fallas`);
 process.exit(mal ? 1 : 0);

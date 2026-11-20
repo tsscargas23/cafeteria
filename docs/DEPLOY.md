@@ -41,6 +41,10 @@ navegador: precios, totales y permisos se validan en la base.
    precios y pagos validados en la base, recetas solo de la dueña, anulación que devuelve lo que se descontó y el
    bloqueo de intentos sin carreras). **La función `ingresar` se tiene que volver a desplegar después de la 0008**,
    porque ahora usa `reservar_intento()`.
+   Por último, `0009_permisos_funciones.sql`: les saca a las visitas sin sesión el permiso de llamar a las funciones de
+   ventas y reportes (Supabase se lo da por defecto) y fija el `search_path` de los reportes. Cierra los avisos de
+   *Advisors → Security*; los que quedan (`es_duena`, `es_usuaria_activa`, `permiso` y la protección de contraseñas
+   filtradas, que es del plan pago) son esperables.
    Nota para la auditoría: el límite de intentos de Supabase Auth es por IP, y en este flujo la IP es la de la función.
 3. **Authentication → Providers**: dejar solo **Email** (sin Google ni otros). En *Email*, desactivar «Confirm email»
    si las cuentas las crea la dueña a mano, o dejarlo activo si cada empleada confirma la suya.
